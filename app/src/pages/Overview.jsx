@@ -15,7 +15,6 @@ export default function Overview() {
 
   useEffect(() => { fetchData() }, [])
   const [misUOs, setMisUOs] = useState([])
-  const [misUOs, setMisUOs] = useState([])
 
 useEffect(() => {
   if (profile?.id) fetchMisUOs()
