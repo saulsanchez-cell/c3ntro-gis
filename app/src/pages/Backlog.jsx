@@ -50,9 +50,9 @@ export default function Backlog() {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 53px)' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 20px', background:'var(--surface)', borderBottom:'0.5px solid var(--border2)', flexShrink:0 }}>
-        <div style={{ display:'flex', alignItems:'baseline', gap:'8px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
           <span style={{ fontWeight:'700', fontSize:'14px' }}>Backlog operativo</span>
-          <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted2)' }}>{uosFiltradas.length} de {uos.length} UOs</span>
+          <button onClick={() => navigate('/backlog/nueva')} style={{ padding:'4px 10px', borderRadius:'4px', border:'0.5px solid rgba(249,115,22,0.3)', background:'rgba(249,115,22,0.08)', color:'var(--orange)', fontSize:'9px', fontFamily:'var(--mono)', marginLeft:'8px' }}>+ NUEVA UO</button>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
           <input placeholder="Buscar referencia o nombre..." value={filtro.busqueda}
