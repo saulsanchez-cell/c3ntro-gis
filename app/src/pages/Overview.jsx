@@ -98,7 +98,7 @@ async function fetchMisUOs() {
           </div>
           <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px' }}>
             <span style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'2px 6px', borderRadius:'3px', background: u.prioridad==='P1' ? 'rgba(249,115,22,0.2)' : 'rgba(120,120,120,0.1)', color: u.prioridad==='P1' ? 'var(--orange)' : 'var(--muted2)' }}>{u.prioridad}</span>
-            {u.link_archivos && <a href={u.link_archivos} target="_blank" rel="noreferrer" style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--blue)' }} onClick={e => e.stopPropagation()}>VER ARCHIVOS</a>}
+            {u.link_archivos && <a href={u.link_archivos} target="_blank" rel="noreferrer" style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--blue)', textDecoration:'underline', fontWeight:'500' }} onClick={e => e.stopPropagation()}>VER ARCHIVOS</a>}
           </div>
         </div>
       ))}
