@@ -98,13 +98,6 @@ export default function FichaUO() {
   fase: logForm.fase,
   nota: logForm.nota,
 }, { onConflict: 'uo_id,fecha,usuario_id' })
-      uo_id: id,
-      usuario_id: profile.id,
-      fecha: hoy,
-      porcentaje_avance: logForm.porcentaje_avance,
-      fase: logForm.fase,
-      nota: logForm.nota,
-    })
 
     if (!error) {
       const updates = {}
