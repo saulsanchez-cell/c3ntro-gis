@@ -1,17 +1,49 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 const ESTADOS = ['Pendiente','Asignada','En Proceso','En Validacion','Validada','Rechazada']
 const ESTADO_COLOR = { Pendiente:'var(--muted2)', Asignada:'var(--orange)', 'En Proceso':'var(--yellow)', 'En Validacion':'var(--yellow)', Validada:'var(--green)', Rechazada:'var(--red)' }
 
 export default function Overview() {
-  const navigate = useNavigate()
+ const navigate = useNavigate()
+ const { profile } = useAuth()
   const [stats, setStats] = useState({ total:0, validadas:0, sla_alto:0, por_estado:{}, por_tipo:{} })
   const [alertas, setAlertas] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { fetchData() }, [])
+  const [misUOs, setMisUOs] = useState([])
+  const [misUOs, setMisUOs] = useState([])
+
+useEffect(() => {
+  if (profile?.id) fetchMisUOs()
+}, [profile])
+
+async function fetchMisUOs() {
+  const { data } = await supabase
+    .from('unidades_operativas')
+    .select('id, referencia_operativa, nombre, tipo_proyecto, prioridad, link_archivos, observaciones')
+    .or(`digitalizador_id.eq.${profile.id},analista_qa_id.eq.${profile.id}`)
+    .in('estado', ['Asignada', 'En Proceso', 'En Validacion'])
+    .eq('es_historico', false)
+  setMisUOs(data || [])
+}
+
+useEffect(() => {
+  if (profile?.id) fetchMisUOs()
+}, [profile])
+
+async function fetchMisUOs() {
+  const { data } = await supabase
+    .from('unidades_operativas')
+    .select('id, referencia_operativa, nombre, tipo_proyecto, prioridad, link_archivos, observaciones')
+    .or(`digitalizador_id.eq.${profile.id},analista_qa_id.eq.${profile.id}`)
+    .in('estado', ['Asignada', 'En Proceso', 'En Validacion'])
+    .eq('es_historico', false)
+  setMisUOs(data || [])
+}
 
   async function fetchData() {
   let allUos = []
@@ -50,6 +82,30 @@ export default function Overview() {
 
   return (
     <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+     {misUOs.length > 0 && profile?.rol !== 'coordinador' && (
+  <div style={{ background:'rgba(249,115,22,0.08)', border:'0.5px solid rgba(249,115,22,0.3)', borderRadius:'8px', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'10px' }}>
+    <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+      <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'var(--orange)', flexShrink:0 }} />
+      <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--orange)', letterSpacing:'0.08em' }}>TIENES {misUOs.length} UO{misUOs.length > 1 ? 's' : ''} ACTIVA{misUOs.length > 1 ? 'S' : ''}</span>
+    </div>
+    <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+      {misUOs.map(u => (
+        <div key={u.id} onClick={() => navigate('/backlog/'+u.id)}
+          style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--surface2)', border:'0.5px solid var(--border2)', borderLeft:'2px solid var(--orange)', borderRadius:'6px', padding:'8px 12px', cursor:'pointer' }}>
+          <div>
+            <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--orange)', marginBottom:'2px' }}>{u.referencia_operativa}</div>
+            <div style={{ fontSize:'10px', color:'var(--text)' }}>{u.nombre}</div>
+            {u.observaciones && <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginTop:'3px' }}>{u.observaciones}</div>}
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px' }}>
+            <span style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'2px 6px', borderRadius:'3px', background: u.prioridad==='P1' ? 'rgba(249,115,22,0.2)' : 'rgba(120,120,120,0.1)', color: u.prioridad==='P1' ? 'var(--orange)' : 'var(--muted2)' }}>{u.prioridad}</span>
+            {u.link_archivos && <a href={u.link_archivos} target="_blank" rel="noreferrer" style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--blue)' }} onClick={e => e.stopPropagation()}>VER ARCHIVOS</a>}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
       <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)', letterSpacing:'0.14em' }}>RESUMEN OPERATIVO</div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px' }}>
         {[
