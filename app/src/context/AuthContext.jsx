@@ -25,7 +25,11 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function fetchProfile(userId) {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
     setProfile(data)
     setLoading(false)
   }
@@ -37,6 +41,9 @@ export function AuthProvider({ children }) {
 
   async function signOut() {
     await supabase.auth.signOut()
+    setUser(null)
+    setProfile(null)
+    window.location.href = '/login'
   }
 
   return (
