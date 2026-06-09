@@ -16,6 +16,7 @@ function ProtectedLayout() {
       <Routes>
         <Route path="/" element={<Overview />} />
         <Route path="/backlog" element={<Backlog />} />
+        <Route path="/backlog/nueva" element={<NuevaUO />} />
         <Route path="/backlog/:id" element={<FichaUO />} />
         <Route path="/equipo" element={<Equipo />} />
         <Route path="/calidad" element={<ComingSoon title="Calidad" />} />
