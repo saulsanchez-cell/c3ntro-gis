@@ -91,6 +91,13 @@ export default function FichaUO() {
     const motivo = logForm.fase === 'Carga completa' ? logForm.comentario_entrega.trim() : (noAvanza ? logForm.nota.trim() : null)
 
     const { error } = await supabase.from('logs_actividad').upsert({
+  uo_id: id,
+  usuario_id: profile.id,
+  fecha: hoy,
+  porcentaje_avance: logForm.porcentaje_avance,
+  fase: logForm.fase,
+  nota: logForm.nota,
+}, { onConflict: 'uo_id,fecha,usuario_id' })
       uo_id: id,
       usuario_id: profile.id,
       fecha: hoy,
