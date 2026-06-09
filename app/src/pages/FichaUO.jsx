@@ -21,7 +21,7 @@ export default function FichaUO() {
   const [savingLog, setSavingLog] = useState(false)
   const [cambioEstado, setCambioEstado] = useState('')
   const [saving, setSaving] = useState(false)
-  const [asignacion, setAsignacion] = useState({ digitalizador_id: '', analista_qa_id: '', prioridad: 'P3' })
+  const [asignacion, setAsignacion] = useState({ digitalizador_id: '', analista_qa_id: '', prioridad: 'P3', link_archivos: '', observaciones: '' })
 
   useEffect(() => { fetchAll() }, [id])
 
@@ -42,7 +42,7 @@ export default function FichaUO() {
         analista_qa_id: uoData.analista_qa_id || '',
         prioridad: uoData.prioridad || 'P3',
         link_archivos: uoData.link_archivos || '',
-observaciones: uoData.observaciones || '',
+        observaciones: uoData.observaciones || '',
       })
     }
     setLoading(false)
@@ -68,6 +68,7 @@ observaciones: uoData.observaciones || '',
     await supabase.from('unidades_operativas').update(updates).eq('id', id)
     setSaving(false)
     fetchAll()
+  }
 
   async function guardarLog() {
     setSavingLog(true)
@@ -263,14 +264,14 @@ observaciones: uoData.observaciones || '',
                   <select value={asignacion.prioridad} onChange={e => setAsignacion(a => ({ ...a, prioridad: e.target.value }))}>
                     {PRIORIDADES.map(p => <option key={p}>{p}</option>)}
                   </select>
-                  <div>
-  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>LINK DE ARCHIVOS</div>
-  <input value={asignacion.link_archivos || ''} onChange={e => setAsignacion(a => ({ ...a, link_archivos: e.target.value }))} placeholder="https://..." />
-</div>
-<div>
-  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>OBSERVACIONES</div>
-  <textarea rows={3} value={asignacion.observaciones || ''} onChange={e => setAsignacion(a => ({ ...a, observaciones: e.target.value }))} placeholder="Instrucciones para el analista..." style={{ resize:'vertical', fontSize:'11px' }} />
-</div>
+                </div>
+                <div>
+                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>LINK DE ARCHIVOS</div>
+                  <input value={asignacion.link_archivos || ''} onChange={e => setAsignacion(a => ({ ...a, link_archivos: e.target.value }))} placeholder="https://..." />
+                </div>
+                <div>
+                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>OBSERVACIONES</div>
+                  <textarea rows={3} value={asignacion.observaciones || ''} onChange={e => setAsignacion(a => ({ ...a, observaciones: e.target.value }))} placeholder="Instrucciones para el analista..." style={{ resize:'vertical', fontSize:'11px' }} />
                 </div>
                 <button onClick={guardarAsignacion} disabled={saving}
                   style={{ padding:'7px 0', borderRadius:'5px', border:'none', background:'var(--orange)', color:'#080808', fontFamily:'var(--mono)', fontSize:'10px', fontWeight:'500', marginTop:'4px' }}>
