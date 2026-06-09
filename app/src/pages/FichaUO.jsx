@@ -87,28 +87,51 @@ export default function FichaUO() {
     }
 
     setSavingLog(true)
+    const hoy = new Date().toISOString().split('T')[0]
     const motivo = logForm.fase === 'Carga completa' ? logForm.comentario_entrega.trim() : (noAvanza ? logForm.nota.trim() : null)
 
     const { error } = await supabase.from('logs_actividad').upsert({
       uo_id: id,
       usuario_id: profile.id,
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: hoy,
       porcentaje_avance: logForm.porcentaje_avance,
       fase: logForm.fase,
       nota: logForm.nota,
     })
 
-    if (!error && logForm.fase === 'Carga completa') {
-      await supabase.from('historial_estados').insert({
-        uo_id: id, usuario_id: profile.id,
-        estado_anterior: uo.estado, estado_nuevo: 'Carga completa',
-        motivo_texto: motivo,
-        categoria_error: 'Comentario de entrega',
-        rol_responsable: 'analista'
-      })
-    }
+    if (!error) {
+      const updates = {}
 
-    if (!error) { setShowLogForm(false); setLogError(''); fetchAll() }
+      if (logForm.fase === 'Carga completa' && logForm.porcentaje_avance === 100) {
+        updates.fecha_carga_final = hoy
+        const fechaAsig = uo.fecha_asignacion
+        if (fechaAsig) {
+          const diff = Math.floor((new Date(hoy) - new Date(fechaAsig)) / (1000 * 60 * 60 * 24))
+          updates.dias_proceso = diff === 0 ? 0 : diff
+        }
+      } else if (!uo.dias_proceso && uo.fecha_asignacion) {
+        const diff = Math.floor((new Date(hoy) - new Date(uo.fecha_asignacion)) / (1000 * 60 * 60 * 24))
+        updates.dias_proceso = diff === 0 ? 0 : diff
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await supabase.from('unidades_operativas').update(updates).eq('id', id)
+      }
+
+      if (logForm.fase === 'Carga completa') {
+        await supabase.from('historial_estados').insert({
+          uo_id: id, usuario_id: profile.id,
+          estado_anterior: uo.estado, estado_nuevo: 'Carga completa',
+          motivo_texto: motivo,
+          categoria_error: 'Comentario de entrega',
+          rol_responsable: 'analista'
+        })
+      }
+
+      setShowLogForm(false)
+      setLogError('')
+      fetchAll()
+    }
     setSavingLog(false)
   }
 
@@ -174,7 +197,7 @@ export default function FichaUO() {
             { label:'KM TEORICOS', val: uo.km_teoricos ? uo.km_teoricos + ' km' : '---', color:'var(--orange)' },
             { label:'FECHA ASIGNACION', val: uo.fecha_asignacion ?? '---' },
             { label:'FECHA CARGA', val: uo.fecha_carga_final ?? '---' },
-            { label:'DIAS PROCESO', val: uo.dias_proceso ? uo.dias_proceso + 'd' : '---', color: uo.dias_proceso > 3 ? 'var(--red)' : undefined },
+           { label:'DIAS PROCESO', val: uo.dias_proceso === 0 ? 'Mismo dia' : uo.dias_proceso ? uo.dias_proceso + 'd' : '---', color: uo.dias_proceso > 3 ? 'var(--red)' : undefined },
             { label:'SLA OBJETIVO', val: '3d habiles' },
             { label:'NO REVISION', val: uo.no_revision ?? 0 },
           ].map((m,i) => (
