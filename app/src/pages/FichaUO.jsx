@@ -41,6 +41,8 @@ export default function FichaUO() {
         digitalizador_id: uoData.digitalizador_id || '',
         analista_qa_id: uoData.analista_qa_id || '',
         prioridad: uoData.prioridad || 'P3',
+        link_archivos: uoData.link_archivos || '',
+observaciones: uoData.observaciones || '',
       })
     }
     setLoading(false)
@@ -52,6 +54,8 @@ export default function FichaUO() {
       digitalizador_id: asignacion.digitalizador_id || null,
       analista_qa_id: asignacion.analista_qa_id || null,
       prioridad: asignacion.prioridad,
+      link_archivos: asignacion.link_archivos || null,
+      observaciones: asignacion.observaciones || null,
     }
     if (asignacion.digitalizador_id && !uo.fecha_asignacion) {
       updates.fecha_asignacion = new Date().toISOString().split('T')[0]
@@ -64,7 +68,6 @@ export default function FichaUO() {
     await supabase.from('unidades_operativas').update(updates).eq('id', id)
     setSaving(false)
     fetchAll()
-  }
 
   async function guardarLog() {
     setSavingLog(true)
@@ -260,6 +263,14 @@ export default function FichaUO() {
                   <select value={asignacion.prioridad} onChange={e => setAsignacion(a => ({ ...a, prioridad: e.target.value }))}>
                     {PRIORIDADES.map(p => <option key={p}>{p}</option>)}
                   </select>
+                  <div>
+  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>LINK DE ARCHIVOS</div>
+  <input value={asignacion.link_archivos || ''} onChange={e => setAsignacion(a => ({ ...a, link_archivos: e.target.value }))} placeholder="https://..." />
+</div>
+<div>
+  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>OBSERVACIONES</div>
+  <textarea rows={3} value={asignacion.observaciones || ''} onChange={e => setAsignacion(a => ({ ...a, observaciones: e.target.value }))} placeholder="Instrucciones para el analista..." style={{ resize:'vertical', fontSize:'11px' }} />
+</div>
                 </div>
                 <button onClick={guardarAsignacion} disabled={saving}
                   style={{ padding:'7px 0', borderRadius:'5px', border:'none', background:'var(--orange)', color:'#080808', fontFamily:'var(--mono)', fontSize:'10px', fontWeight:'500', marginTop:'4px' }}>
