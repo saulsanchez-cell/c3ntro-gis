@@ -6,6 +6,7 @@ import Overview from "./pages/Overview"
 import Backlog from "./pages/Backlog"
 import FichaUO from "./pages/FichaUO"
 import Equipo from "./pages/Equipo"
+import NuevaUO from './pages/NuevaUO'
 
 function ProtectedLayout() {
   const { user, loading } = useAuth()
