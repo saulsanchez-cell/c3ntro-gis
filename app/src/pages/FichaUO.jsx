@@ -37,10 +37,14 @@ export default function FichaUO() {
       supabase.from('profiles').select('*').eq('activo', true).neq('rol', 'coordinador'),
     ])
 
-    const { data: transData } = await supabase
-      .from('transiciones_permitidas')
-      .select('*')
-      .eq('estado_origen', uoData?.estado || '')
+    const { data: transData, error: transError } = await supabase
+  .from('transiciones_permitidas')
+  .select('*')
+  .eq('estado_origen', uoData?.estado || '')
+
+console.log('Estado UO:', uoData?.estado)
+console.log('Transiciones:', transData)
+console.log('Error:', transError)
 
     setUo(uoData)
     setLogs(logsData || [])
