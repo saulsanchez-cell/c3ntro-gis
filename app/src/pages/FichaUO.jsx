@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
 const FASES = ['Preparacion','Carga parcial','Carga completa']
-const ESTADOS_FLUJO = ['Pendiente','Asignada','En Proceso','En Validacion','Validada','Cerrada','Bloqueada','Rechazada','En Correccion']
 const PRIORIDADES = ['P1','P2','P3']
 
 export default function FichaUO() {
@@ -22,21 +21,32 @@ export default function FichaUO() {
   const [savingLog, setSavingLog] = useState(false)
   const [cambioEstado, setCambioEstado] = useState('')
   const [saving, setSaving] = useState(false)
+  const [transiciones, setTransiciones] = useState([])
+  const [showMotivoModal, setShowMotivoModal] = useState(false)
+  const [motivoPendiente, setMotivoPendiente] = useState({ estado: '', motivo: '' })
   const [asignacion, setAsignacion] = useState({ digitalizador_id: '', analista_qa_id: '', prioridad: 'P3', link_archivos: '', observaciones: '' })
 
   useEffect(() => { fetchAll() }, [id])
 
-  async function fetchAll() {
+  
+   async function fetchAll() {
     const [{ data: uoData }, { data: logsData }, { data: histData }, { data: equipoData }] = await Promise.all([
       supabase.from('unidades_operativas').select('*, digitalizador:profiles!digitalizador_id(id,nombre,iniciales), analista_qa:profiles!analista_qa_id(id,nombre,iniciales)').eq('id', id).single(),
       supabase.from('logs_actividad').select('*, usuario:profiles(nombre,iniciales)').eq('uo_id', id).order('created_at', { ascending: false }),
       supabase.from('historial_estados').select('*, usuario:profiles(nombre,iniciales)').eq('uo_id', id).order('created_at', { ascending: false }),
       supabase.from('profiles').select('*').eq('activo', true).neq('rol', 'coordinador'),
     ])
+
+    const { data: transData } = await supabase
+      .from('transiciones_permitidas')
+      .select('*')
+      .eq('estado_origen', uoData?.estado || '')
+
     setUo(uoData)
     setLogs(logsData || [])
     setHistorial(histData || [])
     setEquipo(equipoData || [])
+    setTransiciones(transData || [])
     if (uoData) {
       setAsignacion({
         digitalizador_id: uoData.digitalizador_id || '',
@@ -135,16 +145,20 @@ export default function FichaUO() {
     setSavingLog(false)
   }
 
-  async function cambiarEstado() {
-    if (!cambioEstado) return
+  async function cambiarEstado(nuevoEstado, motivo) {
     const estadoAnterior = uo.estado
-    await supabase.from('unidades_operativas').update({ estado: cambioEstado }).eq('id', id)
+    await supabase.from('unidades_operativas').update({ estado: nuevoEstado }).eq('id', id)
     await supabase.from('historial_estados').insert({
-      uo_id: id, usuario_id: profile.id,
-      estado_anterior: estadoAnterior, estado_nuevo: cambioEstado,
-      rol_responsable: 'coordinador'
+      uo_id: id,
+      usuario_id: profile.id,
+      estado_anterior: estadoAnterior,
+      estado_nuevo: nuevoEstado,
+      motivo_texto: motivo || null,
+      rol_responsable: esCoordinador ? 'coordinador' : 'analista'
     })
     setCambioEstado('')
+    setShowMotivoModal(false)
+    setMotivoPendiente({ estado: '', motivo: '' })
     fetchAll()
   }
 
@@ -179,18 +193,33 @@ export default function FichaUO() {
               </span>
             </div>
           </div>
-          {esCoordinador && (
-            <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
-              <select value={cambioEstado} onChange={e => setCambioEstado(e.target.value)} style={{ width:'160px', padding:'5px 8px', fontSize:'10px' }}>
-                <option value="">Cambiar estado...</option>
-                {ESTADOS_FLUJO.map(e => <option key={e}>{e}</option>)}
-              </select>
-              <button onClick={cambiarEstado} disabled={!cambioEstado}
-                style={{ padding:'6px 12px', borderRadius:'5px', border:'0.5px solid rgba(249,115,22,0.3)', background:'rgba(249,115,22,0.12)', color:'var(--orange)', fontSize:'9px', opacity: cambioEstado ? 1 : 0.4 }}>
-                APLICAR
-              </button>
-            </div>
-          )}
+          {transiciones.length > 0 ? (
+  <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+    <select value={cambioEstado} onChange={e => setCambioEstado(e.target.value)} style={{ width:'160px', padding:'5px 8px', fontSize:'10px' }}>
+      <option value="">Cambiar estado...</option>
+      {transiciones
+        .filter(t => !t.solo_coordinador || esCoordinador)
+        .map(t => <option key={t.estado_destino} value={t.estado_destino}>{t.estado_destino}</option>)}
+    </select>
+    <button onClick={() => {
+      if (!cambioEstado) return
+      const trans = transiciones.find(t => t.estado_destino === cambioEstado)
+      if (trans?.requiere_motivo) {
+        setMotivoPendiente({ estado: cambioEstado, motivo: '' })
+        setShowMotivoModal(true)
+      } else {
+        cambiarEstado(cambioEstado, null)
+      }
+    }} disabled={!cambioEstado}
+      style={{ padding:'6px 12px', borderRadius:'5px', border:'0.5px solid rgba(249,115,22,0.3)', background:'rgba(249,115,22,0.12)', color:'var(--orange)', fontSize:'9px', opacity: cambioEstado ? 1 : 0.4 }}>
+      APLICAR
+    </button>
+  </div>
+) : (
+  <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)', padding:'6px 10px', border:'0.5px solid var(--border2)', borderRadius:'5px' }}>
+    Sin transiciones disponibles
+  </div>
+)}
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', border:'0.5px solid var(--border2)', borderRadius:'7px', overflow:'hidden' }}>
           {[
@@ -410,6 +439,38 @@ export default function FichaUO() {
           </div>
         </div>
       </div>
+    {showMotivoModal && (
+  <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
+    <div style={{ background:'var(--surface)', border:'0.5px solid var(--border)', borderRadius:'10px', padding:'24px', width:'400px', display:'flex', flexDirection:'column', gap:'14px' }}>
+      <div style={{ fontWeight:'700', fontSize:'14px' }}>Motivo requerido</div>
+      <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>
+        Transicion: {uo.estado} → {motivoPendiente.estado}
+      </div>
+      <div>
+        <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>MOTIVO *</div>
+        <textarea rows={4} value={motivoPendiente.motivo}
+          onChange={e => setMotivoPendiente(m => ({ ...m, motivo: e.target.value }))}
+          placeholder="Describe el motivo de esta transicion..."
+          style={{ resize:'vertical', fontSize:'11px' }} />
+        <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color: motivoPendiente.motivo.length >= 20 ? 'var(--green)' : 'var(--muted2)', marginTop:'3px' }}>
+          {motivoPendiente.motivo.length}/20 caracteres minimo
+        </div>
+      </div>
+      <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+        <button onClick={() => { setShowMotivoModal(false); setCambioEstado('') }}
+          style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid var(--border)', background:'none', color:'var(--muted2)', fontSize:'10px', fontFamily:'var(--mono)' }}>
+          CANCELAR
+        </button>
+        <button onClick={() => {
+          if (motivoPendiente.motivo.trim().length < 20) return
+          cambiarEstado(motivoPendiente.estado, motivoPendiente.motivo.trim())
+        }} disabled={motivoPendiente.motivo.trim().length < 20}
+          style={{ padding:'7px 14px', borderRadius:'5px', border:'none', background:'var(--orange)', color:'#080808', fontSize:'10px', fontFamily:'var(--mono)', fontWeight:'500', opacity: motivoPendiente.motivo.trim().length >= 20 ? 1 : 0.4 }}>
+          CONFIRMAR
+        </button>
+      </div>
     </div>
+  </div>
+)}</div>
   )
 }
