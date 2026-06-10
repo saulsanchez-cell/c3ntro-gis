@@ -29,7 +29,7 @@ export default function FichaUO() {
   async function fetchAll() {
     const [{ data: uoData }, { data: logsData }, { data: histData }, { data: equipoData }] = await Promise.all([
       supabase.from('unidades_operativas').select('*, digitalizador:profiles!digitalizador_id(id,nombre,iniciales), analista_qa:profiles!analista_qa_id(id,nombre,iniciales)').eq('id', id).single(),
-      supabase.from('logs_actividad').select('*, usuario:profiles(nombre,iniciales)').eq('uo_id', id).order('fecha', { ascending: false }),
+      supabase.from('logs_actividad').select('*, usuario:profiles(nombre,iniciales)').eq('uo_id', id).order('created_at', { ascending: false }),
       supabase.from('historial_estados').select('*, usuario:profiles(nombre,iniciales)').eq('uo_id', id).order('created_at', { ascending: false }),
       supabase.from('profiles').select('*').eq('activo', true).neq('rol', 'coordinador'),
     ])
