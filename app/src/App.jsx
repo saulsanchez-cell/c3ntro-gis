@@ -8,6 +8,7 @@ import FichaUO from "./pages/FichaUO"
 import Equipo from "./pages/Equipo"
 import NuevaUO from './pages/NuevaUO'
 import Reportes from './pages/Reportes'
+import Checklist from './pages/Checklist'
 
 function ProtectedLayout() {
   const { user, loading } = useAuth()
@@ -20,6 +21,7 @@ function ProtectedLayout() {
         <Route path="/backlog" element={<Backlog />} />
         <Route path="/backlog/nueva" element={<NuevaUO />} />
         <Route path="/backlog/:id" element={<FichaUO />} />
+        <Route path="/backlog/:id/checklist" element={<Checklist />} />
         <Route path="/equipo" element={<Equipo />} />
         <Route path="/calidad" element={<ComingSoon title="Calidad" />} />
         <Route path="/reportes" element={<Reportes />} />
