@@ -5,8 +5,8 @@ import { useAuth } from '../context/AuthContext'
 
 const SECCIONES_ORDEN = ['General','Aereo','Subterraneo','Expenses','Empalmes','Cable','Drop']
 
-function seccionesActivas(metodo, dropAplica) {
-  const base = ['General','Expenses','Empalmes','Cable']
+function seccionesActivas(metodo) {
+  const base = ['General','Empalmes','Cable']
   if (metodo === 'Aereo') return [...base, 'Aereo']
   if (metodo === 'Subterraneo') return [...base, 'Subterraneo']
   if (metodo === 'Mixto') return [...base, 'Aereo', 'Subterraneo']
@@ -53,7 +53,7 @@ export default function Checklist() {
 
   const activas = useMemo(() => {
     if (!uo) return []
-    const secs = seccionesActivas(uo.metodo_constructivo, dropAplica)
+    const secs = seccionesActivas(uo.metodo_constructivo)
     if (dropAplica) secs.push('Drop')
     return secs
   }, [uo, dropAplica])
