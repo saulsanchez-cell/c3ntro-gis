@@ -96,6 +96,20 @@ export default function Checklist() {
   }
 
   async function handleEnviar() {
+    const itemsSinDescripcion = itemsActivos.filter(item => {
+  const r = respuestas[item.id]
+  if (!r) return false
+  const esp = parseInt(r.esperados)
+  const conf = parseInt(r.conformes)
+  if (!esp || isNaN(esp)) return false
+  const cumpl = Math.min(100, Math.round((Math.min(conf || 0, esp) / esp) * 100))
+  return cumpl < 100 && (!r.obs_descripcion || r.obs_descripcion.trim().length < 10)
+})
+
+if (itemsSinDescripcion.length > 0) {
+  alert(`Hay ${itemsSinDescripcion.length} item(s) con error sin descripcion del hallazgo. Completa la descripcion antes de enviar.`)
+  return
+}
     const passes = score.pct >= 97
     if (!passes) {
       setModalData({ caso: 'C' })
