@@ -25,7 +25,7 @@ async function fetchMisUOs() {
     .from('unidades_operativas')
     .select('id, referencia_operativa, nombre, tipo_proyecto, prioridad, link_archivos, observaciones')
     .or(`digitalizador_id.eq.${profile.id},analista_qa_id.eq.${profile.id}`)
-    .in('estado', ['Asignada', 'En Proceso', 'En Validacion'])
+    .in('estado', ['Asignada', 'En Proceso', 'En Validacion', 'En Correccion'])
     .eq('es_historico', false)
   setMisUOs(data || [])
 }
@@ -39,7 +39,7 @@ async function fetchMisUOs() {
     .from('unidades_operativas')
     .select('id, referencia_operativa, nombre, tipo_proyecto, prioridad, link_archivos, observaciones')
     .or(`digitalizador_id.eq.${profile.id},analista_qa_id.eq.${profile.id}`)
-    .in('estado', ['Asignada', 'En Proceso', 'En Validacion'])
+    .in('estado', ['Asignada', 'En Proceso', 'En Validacion', 'En Correccion'])
     .eq('es_historico', false)
   setMisUOs(data || [])
 }
