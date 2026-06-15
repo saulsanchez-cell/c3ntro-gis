@@ -16,6 +16,7 @@ export default function FichaUO() {
   const [historial, setHistorial] = useState([])
   const [equipo, setEquipo] = useState([])
   const [transiciones, setTransiciones] = useState([])
+  const [hallazgos, setHallazgos] = useState([])
   const [loading, setLoading] = useState(true)
   const [showLogForm, setShowLogForm] = useState(false)
   const [logForm, setLogForm] = useState({ porcentaje_avance: 0, fase: 'Preparacion', nota: '', comentario_entrega: '' })
@@ -39,7 +40,32 @@ export default function FichaUO() {
       supabase.from('historial_estados').select('*, usuario:profiles(nombre,iniciales)').eq('uo_id', id).order('created_at', { ascending: false }),
       supabase.from('profiles').select('*').eq('activo', true).neq('rol', 'coordinador'),
     ])
-    const { data: transData } = await supabase.from('transiciones_permitidas').select('*').eq('estado_origen', uoData?.estado || '')
+
+    const { data: transData } = await supabase
+      .from('transiciones_permitidas')
+      .select('*')
+      .eq('estado_origen', uoData?.estado || '')
+
+    if (uoData?.estado === 'En Correccion') {
+      const { data: resData } = await supabase
+        .from('checklist_resultados')
+        .select('id')
+        .eq('uo_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (resData && resData.length > 0) {
+        const { data: hallazgosData } = await supabase
+          .from('checklist_respuestas')
+          .select('*, item:checklist_items(nombre, seccion, familia)')
+          .eq('resultado_id', resData[0].id)
+          .eq('resuelta_en_revision', false)
+          .not('observacion_descripcion', 'is', null)
+        setHallazgos(hallazgosData || [])
+      }
+    } else {
+      setHallazgos([])
+    }
+
     setUo(uoData)
     setLogs(logsData || [])
     setHistorial(histData || [])
@@ -165,7 +191,7 @@ export default function FichaUO() {
           </div>
           <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
             {uo.estado === 'En Validacion' && (esQA || esCoordinador) && (
-              <button onClick={() => navigate(`/backlog/${id}/checklist`)}
+              <button onClick={() => navigate('/backlog/'+id+'/checklist')}
                 style={{ padding:'6px 12px', borderRadius:'5px', border:'none', background:'var(--yellow)', color:'#080808', fontSize:'9px', fontFamily:'var(--mono)', fontWeight:500, cursor:'pointer' }}>
                 INICIAR CHECKLIST
               </button>
@@ -221,6 +247,35 @@ export default function FichaUO() {
 
       <div style={{ display:'grid', gridTemplateColumns:'1fr 320px' }}>
         <div style={{ borderRight:'0.5px solid var(--border2)' }}>
+
+          {uo.estado === 'En Correccion' && hallazgos.length > 0 && (
+            <div style={{ padding:'14px 20px', borderBottom:'0.5px solid var(--border2)', background:'rgba(239,68,68,0.03)' }}>
+              <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--red)', letterSpacing:'0.12em', marginBottom:'10px' }}>
+                CORRECCIONES PENDIENTES · {hallazgos.length} hallazgo(s)
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                {hallazgos.map(h => (
+                  <div key={h.id} style={{ background:'var(--surface2)', border:'0.5px solid rgba(239,68,68,0.2)', borderLeft:'2px solid var(--red)', borderRadius:'6px', padding:'10px 12px' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'4px' }}>
+                      <span style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'1px 6px', borderRadius:'3px', background:'rgba(239,68,68,0.12)', color:'var(--red)' }}>{h.item?.seccion}</span>
+                      <span style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)' }}>{h.item?.familia}</span>
+                    </div>
+                    <div style={{ fontSize:'11px', color:'var(--text)', marginBottom:'4px', fontWeight:'500' }}>{h.item?.nombre}</div>
+                    {h.observacion_familia && (
+                      <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)', marginBottom:'3px' }}>
+                        {h.observacion_familia}{h.observacion_categoria ? ' · ' + h.observacion_categoria : ''}
+                      </div>
+                    )}
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--red)', fontStyle:'italic' }}>"{h.observacion_descripcion}"</div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', marginTop:'4px' }}>
+                      Cumplimiento: {h.cumplimiento_porcentaje?.toFixed(1)}% · {h.puntos_conformes}/{h.puntos_esperados} conformes
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div style={{ padding:'14px 20px', borderBottom:'0.5px solid var(--border2)' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
               <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.12em' }}>LOG DE AVANCE DIARIO</span>
