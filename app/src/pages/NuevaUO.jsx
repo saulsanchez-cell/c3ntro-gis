@@ -31,6 +31,19 @@ export default function NuevaUO() {
     }
     setSaving(true)
     setError('')
+
+    const { data: existe } = await supabase
+      .from('unidades_operativas')
+      .select('id')
+      .eq('referencia_operativa', form.referencia_operativa.trim())
+      .single()
+
+    if (existe) {
+      setError(`Ya existe una UO con la referencia "${form.referencia_operativa.trim()}". Verifica el ID antes de continuar.`)
+      setSaving(false)
+      return
+    }
+
     const { error: err } = await supabase.from('unidades_operativas').insert({
       referencia_operativa: form.referencia_operativa.trim(),
       nombre: form.nombre.trim(),
@@ -44,10 +57,13 @@ export default function NuevaUO() {
       estado: 'Pendiente',
       es_historico: false,
     })
-    if (err) { setError(err.message); setSaving(false) }
-    else navigate('/backlog')
+    if (err) {
+      setError(err.message)
+      setSaving(false)
+    } else {
+      navigate('/backlog')
+    }
   }
-
   return (
     <div style={{ padding:'16px 20px', maxWidth:'700px' }}>
       <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'16px' }}>
