@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import MapaAvance from '../components/MapaAvance'
 
 const ESTADOS = ['Pendiente','Asignada','En Proceso','En Validacion','Validada','Rechazada']
 const ESTADO_COLOR = { Pendiente:'var(--muted2)', Asignada:'var(--orange)', 'En Proceso':'var(--yellow)', 'En Validacion':'var(--yellow)', Validada:'var(--green)', Rechazada:'var(--red)' }
@@ -15,6 +16,7 @@ export default function Overview() {
 
   useEffect(() => { fetchData() }, [])
   const [misUOs, setMisUOs] = useState([])
+  const [uosConCoords, setUosConCoords] = useState([])
 
 useEffect(() => {
   if (profile?.id) fetchMisUOs()
@@ -51,7 +53,7 @@ async function fetchMisUOs() {
   while (true) {
     const { data } = await supabase
       .from('unidades_operativas')
-      .select('estado, tipo_proyecto, sla_validacion, referencia_operativa, nombre, prioridad')
+      .select('estado, tipo_proyecto, sla_validacion, referencia_operativa, nombre, prioridad, latitud, longitud, metodo_constructivo, id')
       .eq('es_historico', false)
       .range(from, from + pageSize - 1)
     if (!data || data.length === 0) break
@@ -72,6 +74,7 @@ async function fetchMisUOs() {
   const alertas_list = uo.filter(u => u.sla_validacion > 3).sort((a,b) => (b.sla_validacion||0)-(a.sla_validacion||0)).slice(0,5)
   setStats({ total:uo.length, validadas:por_estado['Validada']||0, sla_alto, por_estado, por_tipo })
   setAlertas(alertas_list)
+  setUosConCoords(allUos.filter(u => u.latitud && u.longitud))
   setLoading(false)
 }
 
@@ -81,6 +84,16 @@ async function fetchMisUOs() {
 
   return (
     <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+     {uosConCoords.length > 0 && (
+  <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'10px', padding:'14px 16px' }}>
+    <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.14em', marginBottom:'10px', display:'flex', justifyContent:'space-between' }}>
+      <span>MAPA DE AVANCE GEOGRAFICO</span>
+      <span style={{ color:'var(--muted2)' }}>{uosConCoords.length} UOs con coordenadas</span>
+    </div>
+    <MapaAvance uos={uosConCoords} />
+  </div>
+)} 
+      
      {misUOs.length > 0 && profile?.rol !== 'coordinador' && (
   <div style={{ background:'rgba(249,115,22,0.08)', border:'0.5px solid rgba(249,115,22,0.3)', borderRadius:'8px', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'10px' }}>
     <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
