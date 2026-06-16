@@ -79,6 +79,8 @@ export default function FichaUO() {
         link_archivos: uoData.link_archivos || '',
         observaciones: uoData.observaciones || '',
         metodo_constructivo: uoData.metodo_constructivo || '',
+        latitud: uoData.latitud || '',
+longitud: uoData.longitud || '',
       })
     }
     setLoading(false)
@@ -94,6 +96,8 @@ export default function FichaUO() {
       link_archivos: asignacion.link_archivos || null,
       observaciones: asignacion.observaciones || null,
       metodo_constructivo: asignacion.metodo_constructivo,
+      latitud: asignacion.latitud ? parseFloat(asignacion.latitud) : null,
+      longitud: asignacion.longitud ? parseFloat(asignacion.longitud) : null,
     }
     if (asignacion.digitalizador_id && !uo.fecha_asignacion) {
       updates.fecha_asignacion = new Date().toISOString().split('T')[0]
@@ -416,6 +420,16 @@ export default function FichaUO() {
                   <input value={asignacion.link_archivos || ''} onChange={e => setAsignacion(a => ({ ...a, link_archivos: e.target.value }))} placeholder="https://..." />
                 </div>
                 <div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+  <div>
+    <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>LATITUD</div>
+    <input type="number" step="0.0000001" value={asignacion.latitud || ''} onChange={e => setAsignacion(a => ({ ...a, latitud: e.target.value }))} placeholder="ej. 19.432608" />
+  </div>
+  <div>
+    <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>LONGITUD</div>
+    <input type="number" step="0.0000001" value={asignacion.longitud || ''} onChange={e => setAsignacion(a => ({ ...a, longitud: e.target.value }))} placeholder="ej. -99.133209" />
+  </div>
+</div>
                   <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>OBSERVACIONES</div>
                   <textarea rows={3} value={asignacion.observaciones || ''} onChange={e => setAsignacion(a => ({ ...a, observaciones: e.target.value }))} placeholder="Instrucciones para el analista..." style={{ resize:'vertical', fontSize:'11px' }} />
                 </div>
