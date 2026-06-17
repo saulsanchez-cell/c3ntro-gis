@@ -5,9 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { generarCertificado } from '../lib/certificado'
 
 const FASES = ['Preparacion','Carga parcial','Carga completa']
-const ESTADOS_FLUJO = ['Pendiente','Asignada','En Proceso','En Validacion','Validada','Cerrada','Bloqueada','Rechazada','En Correccion']
 const PRIORIDADES = ['P1','P2','P3']
-
 
 export default function FichaUO() {
   const { id } = useParams()
@@ -31,7 +29,8 @@ export default function FichaUO() {
   const [motivoPendiente, setMotivoPendiente] = useState({ estado: '', motivo: '' })
   const [asignacion, setAsignacion] = useState({
     digitalizador_id: '', analista_qa_id: '', prioridad: 'P3',
-    link_archivos: '', observaciones: '', metodo_constructivo: ''
+    link_archivos: '', observaciones: '', metodo_constructivo: '',
+    latitud: '', longitud: ''
   })
 
   useEffect(() => { fetchAll() }, [id])
@@ -64,26 +63,31 @@ export default function FichaUO() {
           .eq('resuelta_en_revision', false)
           .not('observacion_descripcion', 'is', null)
         setHallazgos(hallazgosData || [])
-        if (uoData?.estado === 'Validada' || uoData?.estado === 'Cerrada') {
-  const { data: resData } = await supabase
-    .from('checklist_resultados')
-    .select('*')
-    .eq('uo_id', id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-  if (resData && resData.length > 0) {
-    const { data: respData } = await supabase
-      .from('checklist_respuestas')
-      .select('*, item:checklist_items(nombre, seccion, familia, peso)')
-      .eq('resultado_id', resData[0].id)
-    setUltimoChecklist({ resultado: resData[0], respuestas: respData || [] })
-  }
-} else {
-  setUltimoChecklist(null)
-}
+      } else {
+        setHallazgos([])
       }
     } else {
       setHallazgos([])
+    }
+
+    if (uoData?.estado === 'Validada' || uoData?.estado === 'Cerrada') {
+      const { data: resData2 } = await supabase
+        .from('checklist_resultados')
+        .select('*')
+        .eq('uo_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (resData2 && resData2.length > 0) {
+        const { data: respData } = await supabase
+          .from('checklist_respuestas')
+          .select('*, item:checklist_items(nombre, seccion, familia, peso)')
+          .eq('resultado_id', resData2[0].id)
+        setUltimoChecklist({ resultado: resData2[0], respuestas: respData || [] })
+      } else {
+        setUltimoChecklist(null)
+      }
+    } else {
+      setUltimoChecklist(null)
     }
 
     setUo(uoData)
@@ -100,7 +104,7 @@ export default function FichaUO() {
         observaciones: uoData.observaciones || '',
         metodo_constructivo: uoData.metodo_constructivo || '',
         latitud: uoData.latitud || '',
-longitud: uoData.longitud || '',
+        longitud: uoData.longitud || '',
       })
     }
     setLoading(false)
@@ -221,11 +225,11 @@ longitud: uoData.longitud || '',
               </button>
             )}
             {(uo.estado === 'Validada' || uo.estado === 'Cerrada') && ultimoChecklist && (
-  <button onClick={() => generarCertificado({ uo, resultado: ultimoChecklist.resultado, respuestas: ultimoChecklist.respuestas })}
-    style={{ padding:'6px 12px', borderRadius:'5px', border:'0.5px solid rgba(34,197,94,0.3)', background:'rgba(34,197,94,0.08)', color:'var(--green)', fontSize:'9px', fontFamily:'var(--mono)', fontWeight:500, cursor:'pointer' }}>
-    DESCARGAR CERTIFICADO
-  </button>
-)}
+              <button onClick={() => generarCertificado({ uo, resultado: ultimoChecklist.resultado, respuestas: ultimoChecklist.respuestas })}
+                style={{ padding:'6px 12px', borderRadius:'5px', border:'0.5px solid rgba(34,197,94,0.3)', background:'rgba(34,197,94,0.08)', color:'var(--green)', fontSize:'9px', fontFamily:'var(--mono)', fontWeight:500, cursor:'pointer' }}>
+                DESCARGAR CERTIFICADO
+              </button>
+            )}
             {transiciones.length > 0 ? (
               <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
                 <select value={cambioEstado} onChange={e => setCambioEstado(e.target.value)} style={{ width:'160px', padding:'5px 8px', fontSize:'10px' }}>
@@ -445,17 +449,17 @@ longitud: uoData.longitud || '',
                   <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>LINK DE ARCHIVOS</div>
                   <input value={asignacion.link_archivos || ''} onChange={e => setAsignacion(a => ({ ...a, link_archivos: e.target.value }))} placeholder="https://..." />
                 </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+                  <div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>LATITUD</div>
+                    <input type="number" step="0.0000001" value={asignacion.latitud || ''} onChange={e => setAsignacion(a => ({ ...a, latitud: e.target.value }))} placeholder="ej. 19.432608" />
+                  </div>
+                  <div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>LONGITUD</div>
+                    <input type="number" step="0.0000001" value={asignacion.longitud || ''} onChange={e => setAsignacion(a => ({ ...a, longitud: e.target.value }))} placeholder="ej. -99.133209" />
+                  </div>
+                </div>
                 <div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-  <div>
-    <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>LATITUD</div>
-    <input type="number" step="0.0000001" value={asignacion.latitud || ''} onChange={e => setAsignacion(a => ({ ...a, latitud: e.target.value }))} placeholder="ej. 19.432608" />
-  </div>
-  <div>
-    <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>LONGITUD</div>
-    <input type="number" step="0.0000001" value={asignacion.longitud || ''} onChange={e => setAsignacion(a => ({ ...a, longitud: e.target.value }))} placeholder="ej. -99.133209" />
-  </div>
-</div>
                   <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>OBSERVACIONES</div>
                   <textarea rows={3} value={asignacion.observaciones || ''} onChange={e => setAsignacion(a => ({ ...a, observaciones: e.target.value }))} placeholder="Instrucciones para el analista..." style={{ resize:'vertical', fontSize:'11px' }} />
                 </div>
