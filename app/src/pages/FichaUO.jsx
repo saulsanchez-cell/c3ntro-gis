@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { generarCertificado } from '../lib/certificado'
+import { generarCertificado, generarCertificadoConectividad } from '../lib/certificado'
 
 const FASES = ['Preparacion','Carga parcial','Carga completa']
 const PRIORIDADES = ['P1','P2','P3']
@@ -224,10 +224,16 @@ export default function FichaUO() {
                 INICIAR CHECKLIST
               </button>
             )}
-            {(uo.estado === 'Validada' || uo.estado === 'Cerrada') && ultimoChecklist && (
+           {(uo.estado === 'Validada' || uo.estado === 'Cerrada') && ultimoChecklist && (
               <button onClick={() => generarCertificado({ uo, resultado: ultimoChecklist.resultado, respuestas: ultimoChecklist.respuestas })}
                 style={{ padding:'6px 12px', borderRadius:'5px', border:'0.5px solid rgba(34,197,94,0.3)', background:'rgba(34,197,94,0.08)', color:'var(--green)', fontSize:'9px', fontFamily:'var(--mono)', fontWeight:500, cursor:'pointer' }}>
                 DESCARGAR CERTIFICADO
+              </button>
+            )}
+            {(uo.estado === 'Validada' || uo.estado === 'Cerrada') && ultimoChecklist && (
+              <button onClick={() => generarCertificadoConectividad({ uo, resultado: ultimoChecklist.resultado })}
+                style={{ padding:'6px 12px', borderRadius:'5px', border:'0.5px solid rgba(59,130,246,0.3)', background:'rgba(59,130,246,0.08)', color:'var(--blue)', fontSize:'9px', fontFamily:'var(--mono)', fontWeight:500, cursor:'pointer' }}>
+                AVISO CONECTIVIDAD
               </button>
             )}
             {transiciones.length > 0 ? (

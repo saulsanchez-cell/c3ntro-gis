@@ -208,3 +208,121 @@ export function generarCertificado({ uo, resultado, respuestas, esperaResolucion
 
   doc.save(`Certificado_${uo.referencia_operativa}_Rev${resultado.no_revision_al_momento}.pdf`)
 }
+export function generarCertificadoConectividad({ uo, resultado }) {
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const margin = 50
+  const contentWidth = pageWidth - margin * 2
+  let y = 50
+
+  function setColor(rgb) { doc.setTextColor(rgb[0], rgb[1], rgb[2]) }
+  function setFill(rgb) { doc.setFillColor(rgb[0], rgb[1], rgb[2]) }
+  function setDraw(rgb) { doc.setDrawColor(rgb[0], rgb[1], rgb[2]) }
+
+  // Header
+  setFill(COLORS.dark)
+  doc.circle(margin + 10, y, 10, 'F')
+  setColor(COLORS.dark)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.text('C3NTRO TELECOM', margin + 28, y - 2)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setColor(COLORS.gray)
+  doc.text('GIS Operations', margin + 28, y + 9)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  setColor(COLORS.dark)
+  doc.text('Aviso de validacion GIS', pageWidth - margin, y - 2, { align: 'right' })
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setColor(COLORS.gray)
+  doc.text('Para: Conectividad', pageWidth - margin, y + 9, { align: 'right' })
+
+  y += 30
+  setDraw(COLORS.border)
+  doc.setLineWidth(0.5)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 24
+
+  // Datos UO principales
+  setFill(COLORS.lightGray)
+  doc.roundedRect(margin, y, contentWidth, 70, 4, 4, 'F')
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setColor(COLORS.gray)
+  doc.text('UNIDAD OPERATIVA', margin + 16, y + 18)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(15)
+  setColor(COLORS.dark)
+  doc.text(uo.nombre, margin + 16, y + 36)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  setColor(COLORS.gray)
+  doc.text(`REF · ${uo.referencia_operativa}`, margin + 16, y + 52)
+
+  doc.setFontSize(8)
+  setColor(COLORS.gray)
+  doc.text('ID BASECAMP', margin + 280, y + 18)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  setColor(COLORS.dark)
+  doc.text(String(uo.id_basecamp || '---'), margin + 280, y + 32)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setColor(COLORS.gray)
+  doc.text('PROYECTO VETRO', margin + 280, y + 48)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  setColor(COLORS.dark)
+  const proyectoVetro = uo.proyecto_vetro || '---'
+  doc.text(proyectoVetro.length > 35 ? proyectoVetro.substring(0,35)+'...' : proyectoVetro, margin + 280, y + 60)
+
+  y += 90
+
+  // Resultado destacado
+  const resultColor = resultado.resultado === 'Aprobado' ? COLORS.green : COLORS.red
+  setFill(resultColor[0] === 34 ? [34,197,94,0.08] : COLORS.lightGray)
+  doc.setFillColor(resultColor[0], resultColor[1], resultColor[2])
+  doc.roundedRect(margin, y, contentWidth, 36, 6, 6, 'F')
+  doc.setTextColor(255,255,255)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.text(resultado.resultado === 'Aprobado' ? 'VALIDACION APROBADA' : 'VALIDACION RECHAZADA', pageWidth/2, y + 23, { align: 'center' })
+
+  y += 56
+
+  // Fechas y responsables
+  const rows = [
+    ['Fecha de carga', uo.fecha_carga_final || '---'],
+    ['Fecha de validacion', resultado.fecha_revision || '---'],
+    ['Cargado por', uo.digitalizador?.nombre || '---'],
+    ['Revisado por', uo.analista_qa?.nombre || '---'],
+    ['Metodo constructivo', uo.metodo_constructivo || '---'],
+  ]
+  rows.forEach(r => {
+    setDraw(COLORS.border)
+    doc.line(margin, y, pageWidth - margin, y)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    setColor(COLORS.gray)
+    doc.text(r[0], margin, y + 16)
+    doc.setFont('helvetica', 'bold')
+    setColor(COLORS.dark)
+    doc.text(String(r[1]), pageWidth - margin, y + 16, { align: 'right' })
+    y += 28
+  })
+
+  setDraw(COLORS.border)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 30
+
+  doc.setFontSize(7)
+  setColor(COLORS.gray)
+  const fechaGen = new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
+  doc.text(`Generado el ${fechaGen} · Version checklist v1.0`, margin, y)
+
+  doc.save(`Aviso_Conectividad_${uo.referencia_operativa}.pdf`)
+}
