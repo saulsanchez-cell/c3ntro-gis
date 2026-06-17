@@ -2,15 +2,18 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { generarCertificado } from '../lib/certificado'
 
 const FASES = ['Preparacion','Carga parcial','Carga completa']
 const ESTADOS_FLUJO = ['Pendiente','Asignada','En Proceso','En Validacion','Validada','Cerrada','Bloqueada','Rechazada','En Correccion']
 const PRIORIDADES = ['P1','P2','P3']
 
+
 export default function FichaUO() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { profile } = useAuth()
+  const [ultimoChecklist, setUltimoChecklist] = useState(null)
   const [uo, setUo] = useState(null)
   const [logs, setLogs] = useState([])
   const [historial, setHistorial] = useState([])
@@ -61,6 +64,23 @@ export default function FichaUO() {
           .eq('resuelta_en_revision', false)
           .not('observacion_descripcion', 'is', null)
         setHallazgos(hallazgosData || [])
+        if (uoData?.estado === 'Validada' || uoData?.estado === 'Cerrada') {
+  const { data: resData } = await supabase
+    .from('checklist_resultados')
+    .select('*')
+    .eq('uo_id', id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+  if (resData && resData.length > 0) {
+    const { data: respData } = await supabase
+      .from('checklist_respuestas')
+      .select('*, item:checklist_items(nombre, seccion, familia, peso)')
+      .eq('resultado_id', resData[0].id)
+    setUltimoChecklist({ resultado: resData[0], respuestas: respData || [] })
+  }
+} else {
+  setUltimoChecklist(null)
+}
       }
     } else {
       setHallazgos([])
@@ -200,6 +220,12 @@ longitud: uoData.longitud || '',
                 INICIAR CHECKLIST
               </button>
             )}
+            {(uo.estado === 'Validada' || uo.estado === 'Cerrada') && ultimoChecklist && (
+  <button onClick={() => generarCertificado({ uo, resultado: ultimoChecklist.resultado, respuestas: ultimoChecklist.respuestas })}
+    style={{ padding:'6px 12px', borderRadius:'5px', border:'0.5px solid rgba(34,197,94,0.3)', background:'rgba(34,197,94,0.08)', color:'var(--green)', fontSize:'9px', fontFamily:'var(--mono)', fontWeight:500, cursor:'pointer' }}>
+    DESCARGAR CERTIFICADO
+  </button>
+)}
             {transiciones.length > 0 ? (
               <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
                 <select value={cambioEstado} onChange={e => setCambioEstado(e.target.value)} style={{ width:'160px', padding:'5px 8px', fontSize:'10px' }}>
