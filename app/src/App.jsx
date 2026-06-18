@@ -9,6 +9,7 @@ import Equipo from "./pages/Equipo"
 import NuevaUO from './pages/NuevaUO'
 import Reportes from './pages/Reportes'
 import Checklist from './pages/Checklist'
+import Alertas from './pages/Alertas'
 
 function ProtectedLayout() {
   const { user, loading } = useAuth()
@@ -25,6 +26,7 @@ function ProtectedLayout() {
         <Route path="/equipo" element={<Equipo />} />
         <Route path="/calidad" element={<ComingSoon title="Calidad" />} />
         <Route path="/reportes" element={<Reportes />} />
+        <Route path="/alertas" element={<Alertas />} />
       </Routes>
     </div>
   )

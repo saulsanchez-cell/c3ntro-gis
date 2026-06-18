@@ -7,6 +7,7 @@ const NAV = [
   { label: 'EQUIPO', path: '/equipo' },
   { label: 'CALIDAD', path: '/calidad' },
   { label: 'REPORTES', path: '/reportes' },
+  { label: 'ALERTAS', path: '/alertas' },
 ]
 
 export default function Topbar() {
