@@ -50,23 +50,27 @@ export function generarCertificado({ uo, resultado, respuestas, esperaResolucion
   doc.line(margin, y, pageWidth - margin, y)
   y += 20
 
-  // Datos UO
+// Datos UO
   setFill(COLORS.lightGray)
-  doc.roundedRect(margin, y, contentWidth, 60, 4, 4, 'F')
+  doc.roundedRect(margin, y, contentWidth, 56, 4, 4, 'F')
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
+  doc.setFontSize(7)
   setColor(COLORS.gray)
-  doc.text('UNIDAD OPERATIVA', margin + 14, y + 16)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
-  setColor(COLORS.dark)
-  doc.text(uo.nombre, margin + 14, y + 32)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setColor(COLORS.gray)
-  doc.text(`REF · ${uo.referencia_operativa}`, margin + 14, y + 46)
+  doc.text('UNIDAD OPERATIVA', margin + 14, y + 14)
 
-  const col2x = margin + contentWidth / 2 + 10
+  const nombreMaxWidth = contentWidth * 0.48
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  setColor(COLORS.dark)
+  const nombreLines = doc.splitTextToSize(uo.nombre, nombreMaxWidth)
+  doc.text(nombreLines.slice(0, 2), margin + 14, y + 28)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
+  setColor(COLORS.gray)
+  doc.text(`REF · ${uo.referencia_operativa}`, margin + 14, y + 48)
+
+  const col2x = margin + contentWidth * 0.56
   const fields2 = [
     ['Tipo', uo.tipo_proyecto || '---'],
     ['Metodo constructivo', uo.metodo_constructivo || '---'],
@@ -74,19 +78,19 @@ export function generarCertificado({ uo, resultado, respuestas, esperaResolucion
     ['KM teoricos', uo.km_teoricos ? uo.km_teoricos + ' km' : '---'],
   ]
   fields2.forEach((f, i) => {
-    const fx = col2x + (i % 2) * 130
-    const fy = y + 16 + Math.floor(i / 2) * 22
-    doc.setFontSize(7)
+    const fx = col2x + (i % 2) * (contentWidth * 0.22)
+    const fy = y + 14 + Math.floor(i / 2) * 22
+    doc.setFontSize(6.5)
     setColor(COLORS.gray)
     doc.text(f[0], fx, fy)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
+    doc.setFontSize(8.5)
     setColor(COLORS.dark)
-    doc.text(String(f[1]), fx, fy + 11)
+    doc.text(String(f[1]), fx, fy + 10)
     doc.setFont('helvetica', 'normal')
   })
 
-  y += 75
+  y += 70
 
   // Score banner
   const scoreCards = [
@@ -125,51 +129,52 @@ export function generarCertificado({ uo, resultado, respuestas, esperaResolucion
 
   y += 28
 
-  // Detalle por seccion
+// Detalle por seccion
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
+  doc.setFontSize(8)
   setColor(COLORS.dark)
   doc.text('DETALLE POR SECCION', margin, y)
-  y += 14
+  y += 12
 
   const secciones = [...new Set(respuestas.map(r => r.item?.seccion).filter(Boolean))]
-  doc.setFontSize(7.5)
+  doc.setFontSize(6.5)
 
   secciones.forEach(seccion => {
-    if (y > 700) { doc.addPage(); y = 50 }
+    if (y > 740) { doc.addPage(); y = 50 }
     doc.setFont('helvetica', 'bold')
     setColor(COLORS.gray)
     doc.text(seccion.toUpperCase(), margin, y)
-    y += 12
+    y += 10
 
     const itemsSec = respuestas.filter(r => r.item?.seccion === seccion)
     itemsSec.forEach(r => {
-      if (y > 730) { doc.addPage(); y = 50 }
+      if (y > 755) { doc.addPage(); y = 50 }
       doc.setFont('helvetica', 'normal')
+      doc.setFontSize(6.5)
       setColor(COLORS.dark)
-      const nombre = (r.item?.nombre || '').substring(0, 55)
+      const nombre = (r.item?.nombre || '').substring(0, 62)
       doc.text(nombre, margin, y)
-      doc.text(`x${r.item?.peso || ''}`, margin + 290, y, { align: 'right' })
-      doc.text(String(r.puntos_esperados), margin + 340, y, { align: 'right' })
+      doc.text(`x${r.item?.peso || ''}`, margin + 300, y, { align: 'right' })
+      doc.text(String(r.puntos_esperados), margin + 345, y, { align: 'right' })
       doc.text(String(r.puntos_conformes), margin + 390, y, { align: 'right' })
       const cumplColor = r.cumplimiento_porcentaje >= 97 ? COLORS.green : r.cumplimiento_porcentaje >= 80 ? COLORS.yellow : COLORS.red
       setColor(cumplColor)
       doc.setFont('helvetica', 'bold')
       doc.text(r.cumplimiento_porcentaje.toFixed(0) + '%', margin + 440, y, { align: 'right' })
-      y += 13
+      y += 9.5
     })
-    y += 6
+    y += 4
   })
 
-  y += 10
-  if (y > 680) { doc.addPage(); y = 50 }
+  y += 6
+  if (y > 730) { doc.addPage(); y = 50 }
 
   // Equipo
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
+  doc.setFontSize(8)
   setColor(COLORS.dark)
   doc.text('EQUIPO', margin, y)
-  y += 16
+  y += 13
 
   const equipo = [
     ['Digitalizador', uo.digitalizador?.nombre || '---'],
@@ -177,22 +182,22 @@ export function generarCertificado({ uo, resultado, respuestas, esperaResolucion
   ]
   equipo.forEach((e, i) => {
     const ex = margin + i * 200
-    doc.setFontSize(7)
+    doc.setFontSize(6.5)
     setColor(COLORS.gray)
     doc.text(e[0], ex, y)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
+    doc.setFontSize(8)
     setColor(COLORS.dark)
-    doc.text(e[1], ex, y + 13)
+    doc.text(e[1], ex, y + 11)
     doc.setFont('helvetica', 'normal')
   })
 
-  y += 35
+  y += 28
   setDraw(COLORS.border)
   doc.line(margin, y, pageWidth - margin, y)
-  y += 16
+  y += 14
 
-  doc.setFontSize(7)
+  doc.setFontSize(6.5)
   setColor(COLORS.gray)
   const fechaGen = new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
   doc.text(`Generado el ${fechaGen} · Version checklist v1.0`, margin, y)
@@ -200,10 +205,10 @@ export function generarCertificado({ uo, resultado, respuestas, esperaResolucion
   const resultColor = resultado.resultado === 'Aprobado' ? COLORS.green : COLORS.red
   setFill(resultColor)
   const badgeText = resultado.resultado
-  doc.roundedRect(pageWidth - margin - 80, y - 12, 80, 18, 4, 4, 'F')
+  doc.roundedRect(pageWidth - margin - 80, y - 11, 80, 16, 4, 4, 'F')
   doc.setTextColor(255,255,255)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
+  doc.setFontSize(7.5)
   doc.text(badgeText, pageWidth - margin - 40, y - 1, { align: 'center' })
 
   doc.save(`Certificado_${uo.referencia_operativa}_Rev${resultado.no_revision_al_momento}.pdf`)
