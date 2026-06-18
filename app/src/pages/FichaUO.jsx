@@ -195,10 +195,16 @@ export default function FichaUO() {
 
   async function cambiarEstado(nuevoEstado, motivo) {
     const estadoAnterior = uo.estado
-    await supabase.from('unidades_operativas').update({ estado: nuevoEstado }).eq('id', id)
+    const updates = { estado: nuevoEstado }
+    if (estadoAnterior === 'Cerrada' && nuevoEstado === 'En Proceso') {
+      updates.no_revision = (uo.no_revision || 0) + 1
+    }
+    await supabase.from('unidades_operativas').update(updates).eq('id', id)
     await supabase.from('historial_estados').insert({
       uo_id: id, usuario_id: profile.id, estado_anterior: estadoAnterior, estado_nuevo: nuevoEstado,
-      motivo_texto: motivo || null, rol_responsable: esCoordinador ? 'coordinador' : 'analista'
+      motivo_texto: motivo || null,
+      categoria_error: estadoAnterior === 'Cerrada' ? 'Reapertura' : null,
+      rol_responsable: esCoordinador ? 'coordinador' : 'analista'
     })
     setCambioEstado(''); setShowMotivoModal(false); setMotivoPendiente({ estado: '', motivo: '' })
     fetchAll()
