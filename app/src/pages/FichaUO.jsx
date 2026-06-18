@@ -27,6 +27,8 @@ export default function FichaUO() {
   const [saving, setSaving] = useState(false)
   const [showMotivoModal, setShowMotivoModal] = useState(false)
   const [motivoPendiente, setMotivoPendiente] = useState({ estado: '', motivo: '' })
+  const [showCierreModal, setShowCierreModal] = useState(false)
+  const [cierreData, setCierreData] = useState({ confirmado: false, fecha: new Date().toISOString().split('T')[0], nota: '' })
   const [asignacion, setAsignacion] = useState({
     digitalizador_id: '', analista_qa_id: '', prioridad: 'P3',
     link_archivos: '', observaciones: '', metodo_constructivo: '',
@@ -174,6 +176,23 @@ export default function FichaUO() {
     setSavingLog(false)
   }
 
+  async function confirmarCierre() {
+    if (!cierreData.confirmado) return
+    const estadoAnterior = uo.estado
+    await supabase.from('unidades_operativas').update({ estado: 'Cerrada' }).eq('id', id)
+    await supabase.from('historial_estados').insert({
+      uo_id: id, usuario_id: profile.id,
+      estado_anterior: estadoAnterior, estado_nuevo: 'Cerrada',
+      motivo_texto: `Operational confirmado en Vetro el ${cierreData.fecha}.${cierreData.nota ? ' Nota: ' + cierreData.nota : ''}`,
+      categoria_error: 'Confirmacion cierre',
+      rol_responsable: 'coordinador'
+    })
+    setShowCierreModal(false)
+    setCierreData({ confirmado: false, fecha: new Date().toISOString().split('T')[0], nota: '' })
+    setCambioEstado('')
+    fetchAll()
+  }
+
   async function cambiarEstado(nuevoEstado, motivo) {
     const estadoAnterior = uo.estado
     await supabase.from('unidades_operativas').update({ estado: nuevoEstado }).eq('id', id)
@@ -224,7 +243,7 @@ export default function FichaUO() {
                 INICIAR CHECKLIST
               </button>
             )}
-           {(uo.estado === 'Validada' || uo.estado === 'Cerrada') && ultimoChecklist && (
+            {(uo.estado === 'Validada' || uo.estado === 'Cerrada') && ultimoChecklist && (
               <button onClick={() => generarCertificado({ uo, resultado: ultimoChecklist.resultado, respuestas: ultimoChecklist.respuestas })}
                 style={{ padding:'6px 12px', borderRadius:'5px', border:'0.5px solid rgba(34,197,94,0.3)', background:'rgba(34,197,94,0.08)', color:'var(--green)', fontSize:'9px', fontFamily:'var(--mono)', fontWeight:500, cursor:'pointer' }}>
                 DESCARGAR CERTIFICADO
@@ -245,8 +264,13 @@ export default function FichaUO() {
                 <button onClick={() => {
                   if (!cambioEstado) return
                   const trans = transiciones.find(t => t.estado_destino === cambioEstado)
-                  if (trans?.requiere_motivo) { setMotivoPendiente({ estado: cambioEstado, motivo: '' }); setShowMotivoModal(true) }
-                  else cambiarEstado(cambioEstado, null)
+                  if (cambioEstado === 'Cerrada') {
+                    setShowCierreModal(true)
+                  } else if (trans?.requiere_motivo) {
+                    setMotivoPendiente({ estado: cambioEstado, motivo: '' }); setShowMotivoModal(true)
+                  } else {
+                    cambiarEstado(cambioEstado, null)
+                  }
                 }} disabled={!cambioEstado}
                   style={{ padding:'6px 12px', borderRadius:'5px', border:'0.5px solid rgba(249,115,22,0.3)', background:'rgba(249,115,22,0.12)', color:'var(--orange)', fontSize:'9px', opacity: cambioEstado ? 1 : 0.4 }}>
                   APLICAR
@@ -515,6 +539,50 @@ export default function FichaUO() {
           </div>
         </div>
       </div>
+
+      {showCierreModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
+          <div style={{ background:'var(--surface)', border:'0.5px solid var(--border)', borderRadius:'10px', padding:'24px', width:'440px', display:'flex', flexDirection:'column', gap:'14px' }}>
+            <div style={{ fontWeight:'700', fontSize:'15px' }}>Confirmar cierre de UO</div>
+            <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>
+              REF · {uo.referencia_operativa} · {uo.nombre}
+            </div>
+
+            <div style={{ background:'rgba(34,197,94,0.05)', border:'0.5px solid rgba(34,197,94,0.2)', borderRadius:'7px', padding:'12px' }}>
+              <label style={{ display:'flex', alignItems:'flex-start', gap:'10px', cursor:'pointer' }}>
+                <input type="checkbox" checked={cierreData.confirmado} onChange={e => setCierreData(c => ({ ...c, confirmado: e.target.checked }))}
+                  style={{ marginTop:'2px', accentColor:'var(--green)', width:'16px', height:'16px', flexShrink:0 }} />
+                <span style={{ fontSize:'11px', color:'var(--text)', lineHeight:'1.4' }}>
+                  Confirmo que el plan correspondiente a esta UO ya se encuentra en estatus <strong>Operational</strong> en Vetro FiberMap.
+                </span>
+              </label>
+            </div>
+
+            <div>
+              <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>FECHA DE CONFIRMACION OPERATIONAL</div>
+              <input type="date" value={cierreData.fecha} onChange={e => setCierreData(c => ({ ...c, fecha: e.target.value }))} />
+            </div>
+
+            <div>
+              <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>NOTA (opcional)</div>
+              <textarea rows={2} value={cierreData.nota} onChange={e => setCierreData(c => ({ ...c, nota: e.target.value }))}
+                placeholder="Comentario adicional sobre el cierre..."
+                style={{ resize:'vertical', fontSize:'11px' }} />
+            </div>
+
+            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+              <button onClick={() => { setShowCierreModal(false); setCambioEstado(''); setCierreData({ confirmado: false, fecha: new Date().toISOString().split('T')[0], nota: '' }) }}
+                style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid var(--border)', background:'none', color:'var(--muted2)', fontSize:'10px', fontFamily:'var(--mono)' }}>
+                CANCELAR
+              </button>
+              <button onClick={confirmarCierre} disabled={!cierreData.confirmado}
+                style={{ padding:'7px 14px', borderRadius:'5px', border:'none', background:'var(--green)', color:'#080808', fontSize:'10px', fontFamily:'var(--mono)', fontWeight:'500', opacity: cierreData.confirmado ? 1 : 0.4 }}>
+                CONFIRMAR CIERRE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showMotivoModal && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
