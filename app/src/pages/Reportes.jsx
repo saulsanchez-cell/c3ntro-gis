@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
 export default function Reportes() {
   const { profile } = useAuth()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (profile && profile.rol !== 'coordinador') navigate('/')
+  }, [profile])
   const [uos, setUos] = useState([])
   const [loading, setLoading] = useState(true)
   const [vista, setVista] = useState('coordinador')

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 const ACTIVOS = ['Asignada','En Proceso','En Validacion']
 
@@ -16,6 +17,11 @@ function inicioTrimestre() {
 
 export default function Equipo() {
   const navigate = useNavigate()
+  const { profile } = useAuth()
+
+  useEffect(() => {
+    if (profile && profile.rol !== 'coordinador') navigate('/')
+  }, [profile])
   const [equipo, setEquipo] = useState([])
   const [uos, setUos] = useState([])
   const [checklistResultados, setChecklistResultados] = useState([])

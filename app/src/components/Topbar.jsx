@@ -1,14 +1,18 @@
 import { useAuth } from '../context/AuthContext'
 import { useNavigate, useLocation } from 'react-router-dom'
 
-const NAV = [
+const { profile } = useAuth()
+
+const NAV_ALL = [
   { label: 'OVERVIEW', path: '/' },
   { label: 'BACKLOG', path: '/backlog' },
-  { label: 'EQUIPO', path: '/equipo' },
+  { label: 'EQUIPO', path: '/equipo', soloCoordinador: true },
   { label: 'CALIDAD', path: '/calidad' },
-  { label: 'REPORTES', path: '/reportes' },
+  { label: 'REPORTES', path: '/reportes', soloCoordinador: true },
   { label: 'ALERTAS', path: '/alertas' },
 ]
+
+const NAV = NAV_ALL.filter(n => !n.soloCoordinador || profile?.rol === 'coordinador')
 
 export default function Topbar() {
   const { profile, signOut } = useAuth()
