@@ -69,19 +69,21 @@ export default function Backlog() {
             {['P1','P2','P3'].map(p => <option key={p}>{p}</option>)}
           </select>
           <div style={{ display:'flex', background:'var(--surface2)', borderRadius:'5px', padding:'2px', gap:'1px' }}>
-            {['kanban','lista'].map(v => (
+            {['kanban','lista','cerradas'].map(v => (
               <button key={v} onClick={() => setVista(v)}
                 style={{ padding:'4px 9px', borderRadius:'3px', fontSize:'9px', border:'none',
                   background: vista===v ? 'var(--surface4)' : 'none',
                   color: vista===v ? 'var(--text)' : 'var(--muted2)', letterSpacing:'0.05em' }}>
-                {v.toUpperCase()}
+                {v === 'cerradas' ? 'CERRADAS' : v.toUpperCase()}
               </button>
             ))}
           </div>
         </div>
       </div>
       <div style={{ flex:1, overflow:'auto', padding:'14px 20px' }}>
-        {vista === 'kanban' ? <KanbanView uos={uosFiltradas} navigate={navigate} /> : <ListView uos={uosFiltradas} navigate={navigate} />}
+        {vista === 'kanban' ? <KanbanView uos={uosFiltradas} navigate={navigate} /> :
+ vista === 'cerradas' ? <ListView uos={uos.filter(u => u.estado === 'Cerrada' || u.estado === 'En Correccion')} navigate={navigate} /> :
+ <ListView uos={uosFiltradas} navigate={navigate} />}
       </div>
     </div>
   )
