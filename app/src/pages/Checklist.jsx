@@ -187,7 +187,7 @@ if (itemsSinDescripcion.length > 0) {
 
     const estadoAnterior = uo.estado
     const updates = { estado: estadoNuevo, resultado_checklist: score.pct / 100 }
-    if (modalData.caso === 'C') updates.no_revision = (uo.no_revision || 0) + 1
+    updates.no_revision = (uo.no_revision || 0) + 1
 
     await supabase.from('unidades_operativas').update(updates).eq('id', id)
     await supabase.from('historial_estados').insert({
