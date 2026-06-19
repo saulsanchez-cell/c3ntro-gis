@@ -23,28 +23,7 @@ export default function Topbar() {
       padding:'11px 20px', background:'var(--surface)', borderBottom:'0.5px solid var(--border)',
       position:'sticky', top:0, zIndex:100 }}>
       <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-        <svg width="28" height="32" viewBox="0 0 200 228" style={{ flexShrink:0 }}>
-          <defs>
-            <linearGradient id="sigoGrad" x1="15%" y1="0%" x2="85%" y2="100%">
-              <stop offset="0%" stopColor="#FACC15" />
-              <stop offset="22%" stopColor="#F97316" />
-              <stop offset="42%" stopColor="#DC2626" />
-              <stop offset="58%" stopColor="#1D3557" />
-              <stop offset="62%" stopColor="#3B82F6" />
-              <stop offset="80%" stopColor="#22C55E" />
-              <stop offset="100%" stopColor="#F97316" />
-            </linearGradient>
-          </defs>
-          <path d="M150 38
-                   C150 16 128 4 100 4
-                   C68 4 42 22 42 50
-                   C42 76 64 90 96 100
-                   C100 101.5 104 103 108 104.5
-                   C140 115 158 130 158 156
-                   C158 184 132 204 100 204
-                   C72 204 50 192 50 170"
-            fill="none" stroke="url(#sigoGrad)" strokeWidth="38" strokeLinecap="round" />
-        </svg>
+        <img src="/logo_sigo_small.png" alt="SIGO" style={{ width:26, height:'auto', flexShrink:0 }} />
         <div>
           <div style={{ fontFamily:'var(--disp)', fontWeight:800, fontSize:15, letterSpacing:'0.06em' }}>
             SIGO
