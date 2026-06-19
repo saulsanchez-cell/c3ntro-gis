@@ -66,15 +66,21 @@ export default function Checklist() {
     })
   }, [items, activas, dropAplica])
 
-  const score = useMemo(() => {
+ const score = useMemo(() => {
     let pesoTotal = 0, scoreSum = 0, bloqueantesWarning = 0
     itemsActivos.forEach(item => {
       const r = respuestas[item.id]
       if (!r) return
-      const esp = parseInt(r.esperados)
-      const conf = parseInt(r.conformes)
-      if (!esp || isNaN(esp)) return
-      const cumpl = Math.min(100, Math.round((Math.min(conf || 0, esp) / esp) * 100))
+      let cumpl
+      if (r.manual) {
+        if (r.cumplimiento_manual === undefined || r.cumplimiento_manual === '') return
+        cumpl = Math.min(100, Math.max(0, parseFloat(r.cumplimiento_manual)))
+      } else {
+        const esp = parseInt(r.esperados)
+        const conf = parseInt(r.conformes)
+        if (!esp || isNaN(esp)) return
+        cumpl = Math.min(100, Math.round((Math.min(conf || 0, esp) / esp) * 100))
+      }
       pesoTotal += item.peso
       scoreSum += (cumpl / 100) * item.peso
       if (item.es_bloqueante && cumpl < 80) bloqueantesWarning++
@@ -96,13 +102,19 @@ export default function Checklist() {
   }
 
   async function handleEnviar() {
-    const itemsSinDescripcion = itemsActivos.filter(item => {
+const itemsSinDescripcion = itemsActivos.filter(item => {
   const r = respuestas[item.id]
   if (!r) return false
-  const esp = parseInt(r.esperados)
-  const conf = parseInt(r.conformes)
-  if (!esp || isNaN(esp)) return false
-  const cumpl = Math.min(100, Math.round((Math.min(conf || 0, esp) / esp) * 100))
+  let cumpl
+  if (r.manual) {
+    if (r.cumplimiento_manual === undefined || r.cumplimiento_manual === '') return false
+    cumpl = Math.min(100, Math.max(0, parseFloat(r.cumplimiento_manual)))
+  } else {
+    const esp = parseInt(r.esperados)
+    const conf = parseInt(r.conformes)
+    if (!esp || isNaN(esp)) return false
+    cumpl = Math.min(100, Math.round((Math.min(conf || 0, esp) / esp) * 100))
+  }
   return cumpl < 100 && (!r.obs_descripcion || r.obs_descripcion.trim().length < 10)
 })
 
@@ -167,9 +179,16 @@ if (itemsSinDescripcion.length > 0) {
     if (!errRes && resultado) {
       const respRows = itemsActivos.map(item => {
         const r = respuestas[item.id] || {}
-        const esp = parseInt(r.esperados) || 0
-        const conf = Math.min(parseInt(r.conformes) || 0, esp)
-        const cumpl = esp > 0 ? Math.round((conf / esp) * 10000) / 100 : 0
+        let esp, conf, cumpl
+        if (r.manual) {
+          cumpl = r.cumplimiento_manual !== undefined && r.cumplimiento_manual !== '' ? Math.min(100, Math.max(0, parseFloat(r.cumplimiento_manual))) : 0
+          esp = parseInt(r.esperados) || 0
+          conf = parseInt(r.conformes) || 0
+        } else {
+          esp = parseInt(r.esperados) || 0
+          conf = Math.min(parseInt(r.conformes) || 0, esp)
+          cumpl = esp > 0 ? Math.round((conf / esp) * 10000) / 100 : 0
+        }
         return {
           resultado_id: resultado.id,
           item_id: item.id,
@@ -281,7 +300,9 @@ if (itemsSinDescripcion.length > 0) {
                   const r = respuestas[item.id] || {}
                   const esp = parseInt(r.esperados)
                   const conf = parseInt(r.conformes)
-                  const cumpl = esp > 0 && !isNaN(conf) ? Math.min(100, Math.round((Math.min(conf, esp) / esp) * 100)) : null
+            const cumpl = r.manual
+              ? (r.cumplimiento_manual !== undefined && r.cumplimiento_manual !== '' ? Math.min(100, Math.max(0, parseFloat(r.cumplimiento_manual))) : null)
+              : (esp > 0 && !isNaN(conf) ? Math.min(100, Math.round((Math.min(conf, esp) / esp) * 100)) : null)
                   const tieneError = cumpl !== null && cumpl < 100
                   const esCritico = item.es_bloqueante && cumpl !== null && cumpl < 80
 
@@ -303,14 +324,29 @@ if (itemsSinDescripcion.length > 0) {
                         </div>
                         <div>
                           <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: 'var(--muted2)', marginBottom: 3 }}>CONFORMES</div>
-                          <input type="number" min="0" max={r.esperados || 999999} value={r.conformes} onChange={e => updateRespuesta(item.id, 'conformes', e.target.value)}
-                            style={{ width: '100%', padding: '4px 6px', fontSize: '11px', textAlign: 'right', background: 'var(--surface2)', border: '0.5px solid var(--border)', borderRadius: '4px', color: 'var(--text)' }} />
+                          <input type="number" min="0" max={r.esperados || 999999} value={r.conformes} disabled={r.manual}
+                            onChange={e => updateRespuesta(item.id, 'conformes', e.target.value)}
+                            style={{ width: '100%', padding: '4px 6px', fontSize: '11px', textAlign: 'right', background: r.manual ? 'var(--border2)' : 'var(--surface2)', border: '0.5px solid var(--border)', borderRadius: '4px', color: 'var(--text)', opacity: r.manual ? 0.4 : 1 }} />
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: 'var(--muted2)', marginBottom: 3 }}>CUMPLIM.</div>
-                          <div style={{ fontFamily: 'var(--mono)', fontSize: '13px', fontWeight: 500, color: cumpl === null ? 'var(--muted)' : cumpl >= 97 ? 'var(--green)' : cumpl >= 80 ? 'var(--yellow)' : 'var(--red)' }}>
-                            {cumpl === null ? '—' : cumpl + '%'}
+                          <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: 'var(--muted2)', marginBottom: 3, display:'flex', alignItems:'center', justifyContent:'flex-end', gap:'4px' }}>
+                            <span>CUMPLIM.</span>
+                            <button type="button" onClick={() => updateRespuesta(item.id, 'manual', !r.manual)}
+                              title="Capturar % manualmente"
+                              style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'1px 4px', borderRadius:'3px', border:'0.5px solid var(--border)', background: r.manual ? 'rgba(249,115,22,0.15)' : 'none', color: r.manual ? 'var(--orange)' : 'var(--muted)', cursor:'pointer' }}>
+                              %
+                            </button>
                           </div>
+                          {r.manual ? (
+                            <input type="number" min="0" max="100" value={r.cumplimiento_manual ?? ''} 
+                              onChange={e => updateRespuesta(item.id, 'cumplimiento_manual', e.target.value)}
+                              placeholder="0-100"
+                              style={{ width: '64px', padding: '4px 6px', fontSize: '13px', textAlign: 'right', background: 'var(--surface2)', border: '0.5px solid rgba(249,115,22,0.4)', borderRadius: '4px', color: 'var(--orange)', fontWeight: 500 }} />
+                          ) : (
+                            <div style={{ fontFamily: 'var(--mono)', fontSize: '13px', fontWeight: 500, color: cumpl === null ? 'var(--muted)' : cumpl >= 97 ? 'var(--green)' : cumpl >= 80 ? 'var(--yellow)' : 'var(--red)' }}>
+                              {cumpl === null ? '—' : cumpl + '%'}
+                            </div>
+                          )}
                         </div>
                       </div>
 
