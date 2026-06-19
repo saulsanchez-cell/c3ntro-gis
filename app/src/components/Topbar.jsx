@@ -23,17 +23,26 @@ export default function Topbar() {
       padding:'11px 20px', background:'var(--surface)', borderBottom:'0.5px solid var(--border)',
       position:'sticky', top:0, zIndex:100 }}>
       <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-        <div style={{ width:30, height:30, borderRadius:'50%',
-          background:'conic-gradient(from 200deg,#FACC15 0%,#F97316 18%,#DC2626 36%,#1D3557 52%,#1D3557 64%,#22C55E 78%,#F97316 90%,#FACC15 100%)',
-          display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-          <div style={{ width:11, height:14, borderRadius:'50%', background:'#080808' }} />
-        </div>
+        <svg width="30" height="34" viewBox="0 0 100 114" style={{ flexShrink:0 }}>
+          <defs>
+            <linearGradient id="sigoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#FACC15" />
+              <stop offset="25%" stopColor="#F97316" />
+              <stop offset="50%" stopColor="#DC2626" />
+              <stop offset="68%" stopColor="#1D3557" />
+              <stop offset="84%" stopColor="#3B82F6" />
+              <stop offset="100%" stopColor="#22C55E" />
+            </linearGradient>
+          </defs>
+          <path d="M75 18 C75 8 65 2 50 2 C30 2 18 12 18 28 C18 42 30 48 48 52 L52 53 C68 57 78 62 78 75 C78 90 65 98 50 98 C35 98 25 92 25 80"
+            fill="none" stroke="url(#sigoGrad)" strokeWidth="17" strokeLinecap="round" />
+        </svg>
         <div>
-          <div style={{ fontFamily:'var(--disp)', fontWeight:800, fontSize:13, letterSpacing:'0.07em' }}>
-            C<span style={{ color:'var(--orange)' }}>3</span>NTRO TELECOM
+          <div style={{ fontFamily:'var(--disp)', fontWeight:800, fontSize:15, letterSpacing:'0.06em' }}>
+            SIGO
           </div>
           <div style={{ fontFamily:'var(--mono)', fontSize:8, color:'var(--muted2)', letterSpacing:'0.1em' }}>
-            GIS OPS PLATFORM · {profile?.rol?.toUpperCase() ?? '—'}
+            SISTEMA INTEGRAL DE GESTION OPERATIVA · {profile?.rol?.toUpperCase() ?? '—'}
           </div>
         </div>
       </div>
