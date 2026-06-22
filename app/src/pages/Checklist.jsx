@@ -22,6 +22,9 @@ export default function Checklist() {
   const [items, setItems] = useState([])
   const [catalogo, setCatalogo] = useState([])
   const [respuestas, setRespuestas] = useState({})
+  const [tieneBorrador, setTieneBorrador] = useState(false)
+  const [guardandoBorrador, setGuardandoBorrador] = useState(false)
+  const [ultimoGuardado, setUltimoGuardado] = useState(null)
   const [dropAplica, setDropAplica] = useState(false)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
@@ -43,11 +46,58 @@ export default function Checklist() {
     setItems(itemsData || [])
     setCatalogo(catData || [])
     setNoRevision((revData?.length || 0) + 1)
-    const init = {}
-    itemsData?.forEach(item => {
-      init[item.id] = { esperados: '', conformes: '', obs_familia: '', obs_categoria: '', obs_descripcion: '' }
-    })
-    setRespuestas(init)
+
+    const { data: borrador } = await supabase
+      .from('checklist_borradores')
+      .select('*')
+      .eq('uo_id', id)
+      .eq('usuario_id', profile.id)
+      .maybeSingle()
+
+   if (borrador) {
+      setRespuestas(borrador.respuestas || {})
+      if (borrador.drop_aplica) setDropAplica(borrador.drop_aplica)
+      setTieneBorrador(true)
+    } else if (uoData?.estado === 'En Correccion') {
+      const { data: resAnterior } = await supabase
+        .from('checklist_resultados')
+        .select('id, drop_aplica')
+        .eq('uo_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const init = {}
+      itemsData?.forEach(item => {
+        init[item.id] = { esperados: '', conformes: '', obs_familia: '', obs_categoria: '', obs_descripcion: '', hubo_correccion: false }
+      })
+
+      if (resAnterior) {
+        const { data: respAnteriores } = await supabase
+          .from('checklist_respuestas')
+          .select('*')
+          .eq('resultado_id', resAnterior.id)
+
+        respAnteriores?.forEach(r => {
+          if (init[r.item_id]) {
+            init[r.item_id] = {
+              esperados: String(r.puntos_esperados ?? ''),
+              conformes: r.cumplimiento_porcentaje < 100 ? '' : String(r.puntos_conformes ?? ''),
+              obs_familia: '', obs_categoria: '', obs_descripcion: '',
+              hubo_correccion: false,
+            }
+          }
+        })
+        if (resAnterior.drop_aplica) setDropAplica(resAnterior.drop_aplica)
+      }
+      setRespuestas(init)
+    } else {
+      const init = {}
+      itemsData?.forEach(item => {
+        init[item.id] = { esperados: '', conformes: '', obs_familia: '', obs_categoria: '', obs_descripcion: '', hubo_correccion: false }
+      })
+      setRespuestas(init)
+    }
     setLoading(false)
   }
 
@@ -65,6 +115,24 @@ export default function Checklist() {
       return true
     })
   }, [items, activas, dropAplica])
+
+  useEffect(() => {
+    if (loading || !uo || Object.keys(respuestas).length === 0) return
+    setGuardandoBorrador(true)
+    const timer = setTimeout(async () => {
+      await supabase.from('checklist_borradores').upsert({
+        uo_id: id,
+        usuario_id: profile.id,
+        metodo_constructivo: uo.metodo_constructivo,
+        drop_aplica: dropAplica,
+        respuestas: respuestas,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'uo_id,usuario_id' })
+      setGuardandoBorrador(false)
+      setUltimoGuardado(new Date())
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [respuestas, dropAplica, loading])
 
  const score = useMemo(() => {
     let pesoTotal = 0, scoreSum = 0, bloqueantesWarning = 0
@@ -105,6 +173,9 @@ export default function Checklist() {
 const itemsSinDescripcion = itemsActivos.filter(item => {
   const r = respuestas[item.id]
   if (!r) return false
+  if (r.hubo_correccion) {
+    return !r.obs_descripcion || r.obs_descripcion.trim().length < 10
+  }
   let cumpl
   if (r.manual) {
     if (r.cumplimiento_manual === undefined || r.cumplimiento_manual === '') return false
@@ -198,10 +269,11 @@ if (itemsSinDescripcion.length > 0) {
           observacion_familia: r.obs_familia || null,
           observacion_categoria: r.obs_categoria || null,
           observacion_descripcion: r.obs_descripcion || null,
-          resuelta_en_revision: resolucion === 'resuelta_en_revision',
+          resuelta_en_revision: r.hubo_correccion ? true : (resolucion === 'resuelta_en_revision'),
         }
       })
       await supabase.from('checklist_respuestas').insert(respRows)
+      await supabase.from('checklist_borradores').delete().eq('uo_id', id).eq('usuario_id', profile.id)
     }
 
     const estadoAnterior = uo.estado
@@ -248,15 +320,24 @@ if (itemsSinDescripcion.length > 0) {
         <span style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--orange)' }}>Checklist QA</span>
       </div>
 
-      <div style={{ padding: '14px 20px', background: 'var(--surface)', borderBottom: '0.5px solid var(--border2)' }}>
+     <div style={{ padding: '14px 20px', background: 'var(--surface)', borderBottom: '0.5px solid var(--border2)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <div style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--orange)', marginBottom: 3 }}>CHECKLIST QA · {uo.referencia_operativa} · Revision #{noRevision}</div>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--orange)', marginBottom: 3, display:'flex', alignItems:'center', gap:8 }}>
+              <span>CHECKLIST QA · {uo.referencia_operativa} · Revision #{noRevision}</span>
+              {(guardandoBorrador || ultimoGuardado) && (
+                <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color: guardandoBorrador ? 'var(--yellow)' : 'var(--green)', display:'flex', alignItems:'center', gap:4 }}>
+                  <span style={{ width:5, height:5, borderRadius:'50%', background: guardandoBorrador ? 'var(--yellow)' : 'var(--green)' }} />
+                  {guardandoBorrador ? 'Guardando...' : 'Guardado'}
+                </span>
+              )}
+            </div>
             <div style={{ fontWeight: 700, fontSize: '16px', marginBottom: 6 }}>{uo.nombre}</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {[uo.tipo_proyecto, uo.metodo_constructivo, uo.tipo_infraestructura].filter(Boolean).map(t => (
                 <span key={t} style={{ fontFamily: 'var(--mono)', fontSize: '8px', padding: '2px 8px', borderRadius: '3px', background: 'rgba(120,120,120,0.15)', color: 'var(--muted2)' }}>{t}</span>
               ))}
+              {tieneBorrador && <span style={{ fontFamily: 'var(--mono)', fontSize: '8px', padding: '2px 8px', borderRadius: '3px', background: 'rgba(59,130,246,0.12)', color: 'var(--blue)' }}>Borrador recuperado</span>}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -356,7 +437,17 @@ if (itemsSinDescripcion.length > 0) {
                         </div>
                       )}
 
-                      {tieneError && (
+                      {!tieneError && cumpl === 100 && (
+                        <div style={{ padding: '0 14px 8px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', width: 'fit-content' }}>
+                            <input type="checkbox" checked={r.hubo_correccion || false}
+                              onChange={e => updateRespuesta(item.id, 'hubo_correccion', e.target.checked)}
+                              style={{ accentColor: 'var(--yellow)', width: 12, height: 12 }} />
+                            <span style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: 'var(--muted2)' }}>Hubo corrección en este ítem antes de llegar al 100%</span>
+                          </label>
+                        </div>
+                      )}
+                      {(tieneError || r.hubo_correccion) && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 8, padding: '0 14px 10px' }}>
                           <div>
                             <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: 'var(--muted2)', marginBottom: 3 }}>FAMILIA</div>
@@ -390,7 +481,7 @@ if (itemsSinDescripcion.length > 0) {
           )
         })}
       </div>
-
+      
       <div style={{ position: 'sticky', bottom: 0, background: 'var(--surface)', borderTop: '0.5px solid var(--border)', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
           <div style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: '24px', color: score.pct >= 97 ? 'var(--green)' : 'var(--red)' }}>{score.pct.toFixed(1)}%</div>
