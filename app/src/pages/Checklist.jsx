@@ -58,7 +58,7 @@ export default function Checklist() {
       setRespuestas(borrador.respuestas || {})
       if (borrador.drop_aplica) setDropAplica(borrador.drop_aplica)
       setTieneBorrador(true)
-    } else if (uoData?.estado === 'En Correccion') {
+    } else {
       const { data: resAnterior } = await supabase
         .from('checklist_resultados')
         .select('id, drop_aplica')
@@ -91,13 +91,7 @@ export default function Checklist() {
         if (resAnterior.drop_aplica) setDropAplica(resAnterior.drop_aplica)
       }
       setRespuestas(init)
-    } else {
-      const init = {}
-      itemsData?.forEach(item => {
-        init[item.id] = { esperados: '', conformes: '', obs_familia: '', obs_categoria: '', obs_descripcion: '', hubo_correccion: false }
-      })
-      setRespuestas(init)
-    }
+      }
     setLoading(false)
   }
 
