@@ -25,6 +25,7 @@ export default function Backlog() {
         .eq('es_historico', false)
         .order('prioridad', { ascending: true })
         .order('sla_validacion', { ascending: false, nullsFirst: false })
+        .order('id', { ascending: true })
         .range(from, from + size - 1)
       if (!data || data.length === 0) break
       all = [...all, ...data]
