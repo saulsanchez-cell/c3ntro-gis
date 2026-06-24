@@ -8,69 +8,64 @@ const ESTADOS = ['Pendiente','Asignada','En Proceso','En Validacion','Validada',
 const ESTADO_COLOR = { Pendiente:'var(--muted2)', Asignada:'var(--orange)', 'En Proceso':'var(--yellow)', 'En Validacion':'var(--yellow)', Validada:'var(--green)', Rechazada:'var(--red)' }
 
 export default function Overview() {
- const navigate = useNavigate()
- const { profile } = useAuth()
+  const navigate = useNavigate()
+  const { profile } = useAuth()
   const [stats, setStats] = useState({ total:0, validadas:0, sla_alto:0, por_estado:{}, por_tipo:{} })
   const [alertas, setAlertas] = useState([])
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => { fetchData() }, [])
   const [misUOs, setMisUOs] = useState([])
-  const paraCargar = misUOs.filter(u => u.digitalizador_id === profile.id && (u.estado === 'Asignada' || u.estado === 'En Proceso' || u.estado === 'En Correccion'))
-  const paraValidar = misUOs.filter(u => u.analista_qa_id === profile.id && u.estado === 'En Validacion')
   const [uosConCoords, setUosConCoords] = useState([])
 
-useEffect(() => {
-  if (profile?.id) fetchMisUOs()
-}, [profile])
+  const paraCargar = misUOs.filter(u => u.digitalizador_id === profile.id && (u.estado === 'Asignada' || u.estado === 'En Proceso' || u.estado === 'En Correccion'))
+  const paraValidar = misUOs.filter(u => u.analista_qa_id === profile.id && u.estado === 'En Validacion')
 
-async function fetchMisUOs() {
-  const { data } = await supabase
-    .from('unidades_operativas')
-    .select('id, referencia_operativa, nombre, tipo_proyecto, prioridad, link_archivos, observaciones, digitalizador_id, analista_qa_id, estado')
-    .or(`digitalizador_id.eq.${profile.id},analista_qa_id.eq.${profile.id}`)
-    .in('estado', ['Asignada', 'En Proceso', 'En Validacion', 'En Correccion'])
-    .eq('es_historico', false)
-  setMisUOs(data || [])
-}
+  useEffect(() => { fetchData() }, [])
 
-useEffect(() => {
-  if (profile?.id) fetchMisUOs()
-}, [profile])
+  useEffect(() => {
+    if (profile?.id) fetchMisUOs()
+  }, [profile])
 
-
-
-  async function fetchData() {
-  let allUos = []
-  let from = 0
-  const pageSize = 1000
-  while (true) {
+  async function fetchMisUOs() {
     const { data } = await supabase
       .from('unidades_operativas')
-      .select('estado, tipo_proyecto, sla_validacion, referencia_operativa, nombre, prioridad, latitud, longitud, metodo_constructivo, id')
+      .select('id, referencia_operativa, nombre, tipo_proyecto, prioridad, link_archivos, observaciones, digitalizador_id, analista_qa_id, estado')
+      .or(`digitalizador_id.eq.${profile.id},analista_qa_id.eq.${profile.id}`)
+      .in('estado', ['Asignada', 'En Proceso', 'En Validacion', 'En Correccion'])
       .eq('es_historico', false)
-      .range(from, from + pageSize - 1)
-    if (!data || data.length === 0) break
-    allUos = [...allUos, ...data]
-    if (data.length < pageSize) break
-    from += pageSize
+    setMisUOs(data || [])
   }
-  const uo = allUos
-  if (!uo.length) return
-  const por_estado = {}
-  const por_tipo = {}
-  ESTADOS.forEach(e => por_estado[e] = 0)
-  uo.forEach(u => {
-    por_estado[u.estado] = (por_estado[u.estado] || 0) + 1
-    por_tipo[u.tipo_proyecto] = (por_tipo[u.tipo_proyecto] || 0) + 1
-  })
-  const sla_alto = uo.filter(u => u.sla_validacion > 3).length
-  const alertas_list = uo.filter(u => u.sla_validacion > 3).sort((a,b) => (b.sla_validacion||0)-(a.sla_validacion||0)).slice(0,5)
-  setStats({ total:uo.length, validadas:por_estado['Validada']||0, sla_alto, por_estado, por_tipo })
-  setAlertas(alertas_list)
-  setUosConCoords(allUos.filter(u => u.latitud && u.longitud))
-  setLoading(false)
-}
+
+  async function fetchData() {
+    let allUos = []
+    let from = 0
+    const pageSize = 1000
+    while (true) {
+      const { data } = await supabase
+        .from('unidades_operativas')
+        .select('estado, tipo_proyecto, sla_validacion, referencia_operativa, nombre, prioridad, latitud, longitud, metodo_constructivo, id')
+        .eq('es_historico', false)
+        .range(from, from + pageSize - 1)
+      if (!data || data.length === 0) break
+      allUos = [...allUos, ...data]
+      if (data.length < pageSize) break
+      from += pageSize
+    }
+    const uo = allUos
+    if (!uo.length) return
+    const por_estado = {}
+    const por_tipo = {}
+    ESTADOS.forEach(e => por_estado[e] = 0)
+    uo.forEach(u => {
+      por_estado[u.estado] = (por_estado[u.estado] || 0) + 1
+      por_tipo[u.tipo_proyecto] = (por_tipo[u.tipo_proyecto] || 0) + 1
+    })
+    const sla_alto = uo.filter(u => u.sla_validacion > 3).length
+    const alertas_list = uo.filter(u => u.sla_validacion > 3).sort((a,b) => (b.sla_validacion||0)-(a.sla_validacion||0)).slice(0,5)
+    setStats({ total:uo.length, validadas:por_estado['Validada']||0, sla_alto, por_estado, por_tipo })
+    setAlertas(alertas_list)
+    setUosConCoords(allUos.filter(u => u.latitud && u.longitud))
+    setLoading(false)
+  }
 
   const avance = stats.total > 0 ? ((stats.validadas/stats.total)*100).toFixed(1) : 0
 
@@ -78,71 +73,73 @@ useEffect(() => {
 
   return (
     <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:'14px' }}>
-     {uosConCoords.length > 0 && (
-  <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'10px', padding:'14px 16px' }}>
-    <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.14em', marginBottom:'10px', display:'flex', justifyContent:'space-between' }}>
-      <span>MAPA DE AVANCE GEOGRAFICO</span>
-      <span style={{ color:'var(--muted2)' }}>{uosConCoords.length} UOs con coordenadas</span>
-    </div>
-    <MapaAvance uos={uosConCoords} />
-  </div>
-)} 
-      
-     {(paraCargar.length > 0 || paraValidar.length > 0) && profile?.rol !== 'coordinador' && (
-  <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-
-    {paraCargar.length > 0 && (
-      <div style={{ background:'rgba(34,197,94,0.08)', border:'0.5px solid rgba(34,197,94,0.3)', borderRadius:'8px', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'10px' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-          <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'var(--green)', flexShrink:0 }} />
-          <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--green)', letterSpacing:'0.08em' }}>PARA CARGAR · {paraCargar.length} UO{paraCargar.length > 1 ? 's' : ''}</span>
+      {uosConCoords.length > 0 && (
+        <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'10px', padding:'14px 16px' }}>
+          <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.14em', marginBottom:'10px', display:'flex', justifyContent:'space-between' }}>
+            <span>MAPA DE AVANCE GEOGRAFICO</span>
+            <span style={{ color:'var(--muted2)' }}>{uosConCoords.length} UOs con coordenadas</span>
+          </div>
+          <MapaAvance uos={uosConCoords} />
         </div>
-        <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-          {paraCargar.map(u => (
-            <div key={u.id} onClick={() => navigate('/backlog/'+u.id)}
-              style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--surface2)', border:'0.5px solid var(--border2)', borderLeft:'2px solid var(--green)', borderRadius:'6px', padding:'8px 12px', cursor:'pointer' }}>
-              <div>
-                <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--green)', marginBottom:'2px' }}>{u.referencia_operativa}</div>
-                <div style={{ fontSize:'10px', color:'var(--text)' }}>{u.nombre}</div>
-                {u.observaciones && <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginTop:'3px' }}>{u.observaciones}</div>}
+      )}
+
+      {(paraCargar.length > 0 || paraValidar.length > 0) && profile?.rol !== 'coordinador' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+
+          {paraCargar.length > 0 && (
+            <div style={{ background:'rgba(34,197,94,0.08)', border:'0.5px solid rgba(34,197,94,0.3)', borderRadius:'8px', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'10px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'var(--green)', flexShrink:0 }} />
+                <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--green)', letterSpacing:'0.08em' }}>PARA CARGAR · {paraCargar.length} UO{paraCargar.length > 1 ? 's' : ''}</span>
               </div>
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px' }}>
-                <span style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'2px 6px', borderRadius:'3px', background: u.prioridad==='P1' ? 'rgba(249,115,22,0.2)' : 'rgba(120,120,120,0.1)', color: u.prioridad==='P1' ? 'var(--orange)' : 'var(--muted2)' }}>{u.prioridad}</span>
-                {u.estado === 'En Correccion' && <span style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'2px 6px', borderRadius:'3px', background:'rgba(239,68,68,0.12)', color:'var(--red)' }}>CORRECCION</span>}
-                {u.link_archivos && <a href={u.link_archivos} target="_blank" rel="noreferrer" style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--blue)', textDecoration:'underline', fontWeight:'500' }} onClick={e => e.stopPropagation()}>VER ARCHIVOS</a>}
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                {paraCargar.map(u => (
+                  <div key={u.id} onClick={() => navigate('/backlog/'+u.id)}
+                    style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--surface2)', border:'0.5px solid var(--border2)', borderLeft:'2px solid var(--green)', borderRadius:'6px', padding:'8px 12px', cursor:'pointer' }}>
+                    <div>
+                      <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--green)', marginBottom:'2px' }}>{u.referencia_operativa}</div>
+                      <div style={{ fontSize:'10px', color:'var(--text)' }}>{u.nombre}</div>
+                      {u.observaciones && <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginTop:'3px' }}>{u.observaciones}</div>}
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px' }}>
+                      <span style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'2px 6px', borderRadius:'3px', background: u.prioridad==='P1' ? 'rgba(249,115,22,0.2)' : 'rgba(120,120,120,0.1)', color: u.prioridad==='P1' ? 'var(--orange)' : 'var(--muted2)' }}>{u.prioridad}</span>
+                      {u.estado === 'En Correccion' && <span style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'2px 6px', borderRadius:'3px', background:'rgba(239,68,68,0.12)', color:'var(--red)' }}>CORRECCION</span>}
+                      {u.link_archivos && <a href={u.link_archivos} target="_blank" rel="noreferrer" style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--blue)', textDecoration:'underline', fontWeight:'500' }} onClick={e => e.stopPropagation()}>VER ARCHIVOS</a>}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-      </div>
-    )}
+          )}
 
-    {paraValidar.length > 0 && (
-      <div style={{ background:'rgba(250,204,21,0.08)', border:'0.5px solid rgba(250,204,21,0.3)', borderRadius:'8px', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'10px' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-          <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'var(--yellow)', flexShrink:0 }} />
-          <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--yellow)', letterSpacing:'0.08em' }}>PARA VALIDAR · {paraValidar.length} UO{paraValidar.length > 1 ? 's' : ''}</span>
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-          {paraValidar.map(u => (
-            <div key={u.id} onClick={() => navigate('/backlog/'+u.id)}
-              style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--surface2)', border:'0.5px solid var(--border2)', borderLeft:'2px solid var(--yellow)', borderRadius:'6px', padding:'8px 12px', cursor:'pointer' }}>
-              <div>
-                <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--yellow)', marginBottom:'2px' }}>{u.referencia_operativa}</div>
-                <div style={{ fontSize:'10px', color:'var(--text)' }}>{u.nombre}</div>
-                {u.observaciones && <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginTop:'3px' }}>{u.observaciones}</div>}
+          {paraValidar.length > 0 && (
+            <div style={{ background:'rgba(250,204,21,0.08)', border:'0.5px solid rgba(250,204,21,0.3)', borderRadius:'8px', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'10px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'var(--yellow)', flexShrink:0 }} />
+                <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--yellow)', letterSpacing:'0.08em' }}>PARA VALIDAR · {paraValidar.length} UO{paraValidar.length > 1 ? 's' : ''}</span>
               </div>
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px' }}>
-                <span style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'2px 6px', borderRadius:'3px', background: u.prioridad==='P1' ? 'rgba(249,115,22,0.2)' : 'rgba(120,120,120,0.1)', color: u.prioridad==='P1' ? 'var(--orange)' : 'var(--muted2)' }}>{u.prioridad}</span>
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                {paraValidar.map(u => (
+                  <div key={u.id} onClick={() => navigate('/backlog/'+u.id)}
+                    style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--surface2)', border:'0.5px solid var(--border2)', borderLeft:'2px solid var(--yellow)', borderRadius:'6px', padding:'8px 12px', cursor:'pointer' }}>
+                    <div>
+                      <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--yellow)', marginBottom:'2px' }}>{u.referencia_operativa}</div>
+                      <div style={{ fontSize:'10px', color:'var(--text)' }}>{u.nombre}</div>
+                      {u.observaciones && <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginTop:'3px' }}>{u.observaciones}</div>}
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px' }}>
+                      <span style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'2px 6px', borderRadius:'3px', background: u.prioridad==='P1' ? 'rgba(249,115,22,0.2)' : 'rgba(120,120,120,0.1)', color: u.prioridad==='P1' ? 'var(--orange)' : 'var(--muted2)' }}>{u.prioridad}</span>
+                      {u.link_archivos && <a href={u.link_archivos} target="_blank" rel="noreferrer" style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--blue)', textDecoration:'underline', fontWeight:'500' }} onClick={e => e.stopPropagation()}>VER ARCHIVOS</a>}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-      </div>
-    )}
+          )}
 
-  </div>
-)}
+        </div>
+      )}
+
       <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)', letterSpacing:'0.14em' }}>RESUMEN OPERATIVO</div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px' }}>
         {[
