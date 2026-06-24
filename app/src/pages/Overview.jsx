@@ -13,12 +13,11 @@ export default function Overview() {
   const [stats, setStats] = useState({ total:0, validadas:0, sla_alto:0, por_estado:{}, por_tipo:{} })
   const [alertas, setAlertas] = useState([])
   const [loading, setLoading] = useState(true)
-  const paraCargar = misUOs.filter(u => u.digitalizador_id === profile.id && (u.estado === 'Asignada' || u.estado === 'En Proceso' || u.estado === 'En Correccion'))
-  const paraValidar = misUOs.filter(u => u.analista_qa_id === profile.id && u.estado === 'En Validacion')
-  
 
   useEffect(() => { fetchData() }, [])
   const [misUOs, setMisUOs] = useState([])
+  const paraCargar = misUOs.filter(u => u.digitalizador_id === profile.id && (u.estado === 'Asignada' || u.estado === 'En Proceso' || u.estado === 'En Correccion'))
+  const paraValidar = misUOs.filter(u => u.analista_qa_id === profile.id && u.estado === 'En Validacion')
   const [uosConCoords, setUosConCoords] = useState([])
 
 useEffect(() => {
