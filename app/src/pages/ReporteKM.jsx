@@ -94,6 +94,7 @@ export default function ReporteKM() {
     const grupos = {}
     uos.forEach(u => {
       const key = keyFn(u)
+      if (key === 'Sin entidad' || key === 'Sin clasificar' || key === 'Sin asignar') return
       if (!grupos[key]) grupos[key] = { nombre: key, pendientes: 0, validados: 0, rechazados: 0, total: 0 }
       const km = u.km_teoricos || 0
       grupos[key].total += km
