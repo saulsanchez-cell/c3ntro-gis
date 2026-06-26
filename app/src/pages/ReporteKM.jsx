@@ -1,0 +1,250 @@
+import { useEffect, useState, useMemo } from 'react'
+import { supabase } from '../lib/supabase'
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+
+const TIPOS_FIJOS = ['Tikva', 'Baseline', 'Active Line']
+const COLOR_PENDIENTE = '#EF4444'
+const COLOR_VALIDADO = '#22C55E'
+const COLOR_RECHAZADO = '#9CA3AF'
+const COLOR_EN_PROCESO = '#FACC15'
+
+export default function ReporteKM() {
+  const [loading, setLoading] = useState(true)
+  const [uos, setUos] = useState([])
+  const [checklists, setChecklists] = useState([])
+  const [agrupacion, setAgrupacion] = useState('entidad')
+
+  useEffect(() => { fetchData() }, [])
+
+  async function fetchData() {
+    let all = []
+    let from = 0
+    const size = 1000
+    while (true) {
+      const { data } = await supabase
+        .from('unidades_operativas')
+        .select('id, km_teoricos, tipo_proyecto, entidad_federativa, estado, digitalizador_id, digitalizador:profiles!digitalizador_id(nombre)')
+        .eq('es_historico', false)
+        .range(from, from + size - 1)
+      if (!data || data.length === 0) break
+      all = [...all, ...data]
+      if (data.length < size) break
+      from += size
+    }
+    setUos(all)
+
+    const { data: cl } = await supabase
+      .from('checklist_resultados')
+      .select('uo_id, score_porcentaje')
+      .order('created_at', { ascending: false })
+    setChecklists(cl || [])
+
+    setLoading(false)
+  }
+
+  const scorePorUO = useMemo(() => {
+    const map = {}
+    checklists.forEach(c => {
+      if (!(c.uo_id in map)) map[c.uo_id] = c.score_porcentaje
+    })
+    return map
+  }, [checklists])
+
+  function evaluacionPromedio(lista) {
+    const scores = lista.map(u => scorePorUO[u.id]).filter(s => s !== undefined && s !== null)
+    if (scores.length === 0) return null
+    return scores.reduce((a, b) => a + b, 0) / scores.length
+  }
+
+  const kpisGenerales = useMemo(() => {
+    const kmTotal = uos.reduce((s, u) => s + (u.km_teoricos || 0), 0)
+    const procesados = uos.filter(u => u.estado === 'Validada' || u.estado === 'Cerrada').length
+    const evalProm = evaluacionPromedio(uos.filter(u => u.estado === 'Validada' || u.estado === 'Cerrada'))
+    return { kmTotal, procesados, evalProm }
+  }, [uos, scorePorUO])
+
+  const porTipo = useMemo(() => {
+    return TIPOS_FIJOS.map(tipo => {
+      const lista = uos.filter(u => u.tipo_proyecto === tipo)
+      const validadas = lista.filter(u => u.estado === 'Validada' || u.estado === 'Cerrada')
+      const kmProcesados = validadas.reduce((s, u) => s + (u.km_teoricos || 0), 0)
+      return {
+        tipo,
+        kmProcesados,
+        proyectos: lista.length,
+        evaluacion: evaluacionPromedio(validadas),
+      }
+    })
+  }, [uos, scorePorUO])
+
+  const distribucionTotal = useMemo(() => {
+    const pendientes = uos.filter(u => !['Validada','Cerrada','Rechazada'].includes(u.estado)).reduce((s,u) => s + (u.km_teoricos||0), 0)
+    const validados = uos.filter(u => u.estado === 'Validada' || u.estado === 'Cerrada').reduce((s,u) => s + (u.km_teoricos||0), 0)
+    const rechazados = uos.filter(u => u.estado === 'Rechazada').reduce((s,u) => s + (u.km_teoricos||0), 0)
+    return { pendientes, validados, rechazados, total: pendientes + validados + rechazados }
+  }, [uos])
+
+  const dataAgrupada = useMemo(() => {
+    let keyFn
+    if (agrupacion === 'entidad') keyFn = u => u.entidad_federativa || 'Sin entidad'
+    else if (agrupacion === 'tipo') keyFn = u => u.tipo_proyecto || 'Sin clasificar'
+    else keyFn = u => u.digitalizador?.nombre || 'Sin asignar'
+
+    const grupos = {}
+    uos.forEach(u => {
+      const key = keyFn(u)
+      if (!grupos[key]) grupos[key] = { nombre: key, pendientes: 0, validados: 0, rechazados: 0, total: 0 }
+      const km = u.km_teoricos || 0
+      grupos[key].total += km
+      if (u.estado === 'Validada' || u.estado === 'Cerrada') grupos[key].validados += km
+      else if (u.estado === 'Rechazada') grupos[key].rechazados += km
+      else grupos[key].pendientes += km
+    })
+
+    return Object.values(grupos)
+      .filter(g => g.total > 0)
+      .map(g => ({ ...g, pctAvance: g.total > 0 ? (g.validados / g.total) * 100 : 0 }))
+      .sort((a, b) => b.pctAvance - a.pctAvance)
+  }, [uos, agrupacion])
+
+  const donutData = [
+    { name: 'Pendientes', value: distribucionTotal.pendientes, color: COLOR_PENDIENTE },
+    { name: 'Validados', value: distribucionTotal.validados, color: COLOR_VALIDADO },
+    { name: 'Rechazados', value: distribucionTotal.rechazados, color: COLOR_RECHAZADO },
+  ].filter(d => d.value > 0)
+
+  function exportarPDF() {
+    window.print()
+  }
+
+  if (loading) return <div style={{ padding:'40px', fontFamily:'var(--mono)', fontSize:'11px', color:'var(--muted2)' }}>Cargando reporte...</div>
+
+  const fechaHoy = new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' })
+
+  return (
+    <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:'16px' }} id="reporte-km-container">
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div>
+          <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)', letterSpacing:'0.14em' }}>REPORTE DE AVANCE POR KILOMETRAJE</div>
+          <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)', marginTop:'2px' }}>{fechaHoy}</div>
+        </div>
+        <button onClick={exportarPDF}
+          style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid rgba(249,115,22,0.3)', background:'rgba(249,115,22,0.08)', color:'var(--orange)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer' }}>
+          DESCARGAR PDF
+        </button>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
+        {[
+          { label:'KM TEORICOS TOTAL', val: kpisGenerales.kmTotal.toFixed(2)+' km', color:'var(--orange)' },
+          { label:'PROYECTOS PROCESADOS', val: kpisGenerales.procesados, color:'var(--green)' },
+          { label:'EVALUACION PROMEDIO', val: kpisGenerales.evalProm !== null ? kpisGenerales.evalProm.toFixed(1)+'%' : '---', color:'var(--blue)' },
+        ].map(k => (
+          <div key={k.label} style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', padding:'14px 16px' }}>
+            <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.1em', marginBottom:'8px' }}>{k.label}</div>
+            <div style={{ fontSize:'24px', fontWeight:'700', color:k.color }}>{k.val}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'10px' }}>
+        {porTipo.map(t => (
+          <div key={t.tipo} style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', overflow:'hidden' }}>
+            <div style={{ padding:'9px 14px', borderBottom:'0.5px solid var(--border2)', background:'var(--surface2)' }}>
+              <span style={{ fontWeight:'700', fontSize:'12px' }}>{t.tipo}</span>
+            </div>
+            <div style={{ padding:'12px 14px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+              <div>
+                <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>KM PROCESADOS</div>
+                <div style={{ fontSize:'16px', fontWeight:'700', color:'var(--orange)' }}>{t.kmProcesados.toFixed(2)}</div>
+              </div>
+              <div>
+                <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>PROYECTOS</div>
+                <div style={{ fontSize:'16px', fontWeight:'700' }}>{t.proyectos}</div>
+              </div>
+              <div>
+                <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>EVALUACION</div>
+                <div style={{ fontSize:'16px', fontWeight:'700', color:'var(--green)' }}>{t.evaluacion !== null ? t.evaluacion.toFixed(1)+'%' : '---'}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)', letterSpacing:'0.12em' }}>RANKING DE AVANCE POR KILOMETRAJE</span>
+        <div style={{ display:'flex', background:'var(--surface2)', borderRadius:'6px', padding:'2px', gap:'1px' }}>
+          {[{k:'entidad',l:'ENTIDAD'},{k:'tipo',l:'TIPO PROYECTO'},{k:'digitalizador',l:'DIGITALIZADOR'}].map(o => (
+            <button key={o.k} onClick={() => setAgrupacion(o.k)}
+              style={{ padding:'4px 10px', borderRadius:'4px', fontSize:'9px', border:'none', fontFamily:'var(--mono)',
+                background: agrupacion===o.k ? 'var(--surface4)' : 'none',
+                color: agrupacion===o.k ? 'var(--text)' : 'var(--muted2)' }}>
+              {o.l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', overflow:'hidden' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'40px 1.4fr 90px 90px 70px 1fr', padding:'8px 16px', borderBottom:'0.5px solid var(--border2)', background:'var(--surface2)' }}>
+          {['#','NOMBRE','KM VALID.','KM TOTAL','% AVANCE','PROGRESO'].map(h => (
+            <span key={h} style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted)', letterSpacing:'0.1em' }}>{h}</span>
+          ))}
+        </div>
+        {dataAgrupada.map((g, i) => (
+          <div key={g.nombre} style={{ display:'grid', gridTemplateColumns:'40px 1.4fr 90px 90px 70px 1fr', padding:'9px 16px', borderBottom:'0.5px solid var(--border2)', alignItems:'center' }}>
+            <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted2)' }}>{i+1}</span>
+            <span style={{ fontSize:'11px' }}>{g.nombre}</span>
+            <span style={{ fontFamily:'var(--mono)', fontSize:'10px' }}>{g.validados.toFixed(2)}</span>
+            <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted2)' }}>{g.total.toFixed(2)}</span>
+            <span style={{ fontFamily:'var(--mono)', fontSize:'10px', fontWeight:'600', color: g.pctAvance >= 90 ? 'var(--green)' : g.pctAvance >= 50 ? 'var(--yellow)' : 'var(--red)' }}>{g.pctAvance.toFixed(1)}%</span>
+            <div style={{ height:'10px', background:'var(--border2)', borderRadius:'4px', overflow:'hidden' }}>
+              <div style={{ height:'100%', width:g.pctAvance+'%', borderRadius:'4px', background: g.pctAvance >= 90 ? 'var(--green)' : g.pctAvance >= 50 ? 'var(--yellow)' : 'var(--red)' }} />
+            </div>
+          </div>
+        ))}
+        {dataAgrupada.length === 0 && <div style={{ padding:'20px 16px', fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted)' }}>Sin datos para mostrar</div>}
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1.6fr 1fr', gap:'10px' }}>
+        <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', padding:'14px 16px' }}>
+          <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.12em', marginBottom:'10px' }}>KM POR {agrupacion === 'entidad' ? 'ENTIDAD' : agrupacion === 'tipo' ? 'TIPO DE PROYECTO' : 'DIGITALIZADOR'}</div>
+          <ResponsiveContainer width="100%" height={Math.max(240, dataAgrupada.length * 32)}>
+            <BarChart data={dataAgrupada} layout="vertical" margin={{ left: 10, right: 20 }}>
+              <XAxis type="number" tick={{ fontSize: 9, fill: 'var(--muted2)' }} />
+              <YAxis type="category" dataKey="nombre" width={110} tick={{ fontSize: 9, fill: 'var(--text)' }} />
+              <Tooltip contentStyle={{ background:'#161b22', border:'0.5px solid #30363d', fontSize:'11px' }} />
+              <Legend wrapperStyle={{ fontSize: '9px' }} />
+              <Bar dataKey="pendientes" stackId="a" fill={COLOR_PENDIENTE} name="Pendientes" />
+              <Bar dataKey="validados" stackId="a" fill={COLOR_VALIDADO} name="Validados" />
+              <Bar dataKey="rechazados" stackId="a" fill={COLOR_RECHAZADO} name="Rechazados" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', padding:'14px 16px' }}>
+          <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.12em', marginBottom:'10px' }}>DISTRIBUCION TOTAL DE KM</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={donutData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={80} paddingAngle={2}>
+                {donutData.map((d, i) => <Cell key={i} fill={d.color} />)}
+              </Pie>
+              <Tooltip contentStyle={{ background:'#161b22', border:'0.5px solid #30363d', fontSize:'11px' }} formatter={(v) => v.toFixed(2)+' km'} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginTop:'10px' }}>
+            {donutData.map(d => (
+              <div key={d.name} style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+                  <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:d.color }} />
+                  <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>{d.name}</span>
+                </div>
+                <span style={{ fontFamily:'var(--mono)', fontSize:'9px' }}>{d.value.toFixed(2)} km</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
