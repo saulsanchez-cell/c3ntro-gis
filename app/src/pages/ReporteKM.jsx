@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { jsPDF } from 'jspdf'
 
 const TIPOS_FIJOS = ['Tikva', 'Baseline', 'Active Line']
 const COLOR_PENDIENTE = '#EF4444'
@@ -113,8 +114,36 @@ export default function ReporteKM() {
     { name: 'Rechazados', value: distribucionTotal.rechazados, color: COLOR_RECHAZADO },
   ].filter(d => d.value > 0)
 
-  function exportarPDF() {
-    window.print()
+  async function exportarPDF() {
+    const html2canvas = (await import('html2canvas')).default
+    const { jsPDF } = await import('jspdf')
+
+    const el = document.getElementById('reporte-km-container')
+    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#0d1117', useCORS: true })
+    const imgData = canvas.toDataURL('image/png')
+
+    const pdf = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait' })
+    const pageWidth = pdf.internal.pageSize.getWidth()
+    const pageHeight = pdf.internal.pageSize.getHeight()
+    const margin = 24
+
+    const imgWidth = pageWidth - margin * 2
+    const imgHeight = (canvas.height * imgWidth) / canvas.width
+
+    let heightLeft = imgHeight
+    let position = margin
+
+    pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight)
+    heightLeft -= (pageHeight - margin * 2)
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight + margin
+      pdf.addPage()
+      pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight)
+      heightLeft -= (pageHeight - margin * 2)
+    }
+
+    pdf.save(`Reporte_KM_${new Date().toISOString().split('T')[0]}.pdf`)
   }
 
   if (loading) return <div style={{ padding:'40px', fontFamily:'var(--mono)', fontSize:'11px', color:'var(--muted2)' }}>Cargando reporte...</div>
