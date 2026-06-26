@@ -44,6 +44,7 @@ async function handleCambiarPassword() {
     { label: 'CALIDAD', path: '/calidad' },
     { label: 'REPORTES', path: '/reportes', soloCoordinador: true },
     { label: 'ALERTAS', path: '/alertas' },
+    { label: 'REPORTE KM', path: '/reporte-km', soloCoordinador: true },
   ]
 
   const NAV = NAV_ALL.filter(n => !n.soloCoordinador || profile?.rol === 'coordinador')
