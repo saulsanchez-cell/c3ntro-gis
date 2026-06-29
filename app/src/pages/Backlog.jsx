@@ -117,7 +117,10 @@ function KanbanView({ uos, navigate }) {
                       {u.sla_validacion > 3 && <span style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'2px 5px', borderRadius:'3px', background:'rgba(239,68,68,0.13)', color:'var(--red)' }}>SLA {u.sla_validacion}d</span>}
                       <span style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'2px 5px', borderRadius:'3px', background:'rgba(120,120,120,0.1)', color:'var(--muted2)' }}>{u.tipo_proyecto}</span>
                     </div>
-                    {u.digitalizador && <div style={{ width:'18px', height:'18px', borderRadius:'50%', background:'rgba(34,197,94,0.12)', color:'var(--green)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--mono)', fontSize:'7px' }}>{u.digitalizador.iniciales}</div>}
+                    <div style={{ display:'flex', gap:'3px' }}>
+      {u.digitalizador && <div title={'Digitalizador: '+u.digitalizador.nombre} style={{ width:'18px', height:'18px', borderRadius:'50%', background:'rgba(34,197,94,0.12)', color:'var(--green)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--mono)', fontSize:'7px' }}>{u.digitalizador.iniciales}</div>}
+      {['En Validacion','Validada','Cerrada'].includes(u.estado) && u.analista_qa && <div title={'Analista QA: '+u.analista_qa.nombre} style={{ width:'18px', height:'18px', borderRadius:'50%', background:'rgba(59,130,246,0.12)', color:'var(--blue)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--mono)', fontSize:'7px' }}>{u.analista_qa.iniciales}</div>}
+</div>
                   </div>
                 </div>
               ))}
