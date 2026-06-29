@@ -8,11 +8,13 @@ const COLOR_PENDIENTE = '#EF4444'
 const COLOR_VALIDADO = '#22C55E'
 const COLOR_RECHAZADO = '#9CA3AF'
 const COLOR_EN_PROCESO = '#FACC15'
+const UMBRAL_EVALUACION = 97
 
 export default function ReporteKM() {
   const [loading, setLoading] = useState(true)
   const [uos, setUos] = useState([])
   const [checklists, setChecklists] = useState([])
+  const [metas, setMetas] = useState({})
   const [agrupacion, setAgrupacion] = useState('entidad')
 
   useEffect(() => { fetchData() }, [])
@@ -24,7 +26,7 @@ export default function ReporteKM() {
     while (true) {
       const { data } = await supabase
         .from('unidades_operativas')
-        .select('id, km_teoricos, tipo_proyecto, entidad_federativa, estado, digitalizador_id, digitalizador:profiles!digitalizador_id(nombre)')
+        .select('id, km_teoricos, tipo_proyecto, entidad_federativa, estado, digitalizador_id, created_at, digitalizador:profiles!digitalizador_id(nombre)')
         .eq('es_historico', false)
         .range(from, from + size - 1)
       if (!data || data.length === 0) break
@@ -39,6 +41,11 @@ export default function ReporteKM() {
       .select('uo_id, score_porcentaje')
       .order('created_at', { ascending: false })
     setChecklists(cl || [])
+
+    const { data: metasData } = await supabase.from('metas_proyecto').select('*')
+    const metasMap = {}
+    ;(metasData || []).forEach(m => { metasMap[m.tipo_proyecto] = m.km_objetivo })
+    setMetas(metasMap)
 
     setLoading(false)
   }
@@ -64,19 +71,47 @@ export default function ReporteKM() {
     return { kmTotal, procesados, evalProm }
   }, [uos, scorePorUO])
 
+  // Crecimiento de Active Line: km cargados este mes vs mes anterior, usando created_at
+  const crecimientoActiveLine = useMemo(() => {
+    const lista = uos.filter(u => u.tipo_proyecto === 'Active Line' && u.created_at)
+    const hoy = new Date()
+    const inicioMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
+    const inicioMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)
+
+    let kmMesActual = 0, kmMesAnterior = 0, clientesMesActual = 0
+    lista.forEach(u => {
+      const fecha = new Date(u.created_at)
+      const km = u.km_teoricos || 0
+      if (fecha >= inicioMesActual) { kmMesActual += km; clientesMesActual += 1 }
+      else if (fecha >= inicioMesAnterior && fecha < inicioMesActual) { kmMesAnterior += km }
+    })
+
+    const deltaKm = kmMesActual - kmMesAnterior
+    const deltaPct = kmMesAnterior > 0 ? (deltaKm / kmMesAnterior) * 100 : null
+
+    return { kmMesActual, kmMesAnterior, clientesMesActual, deltaKm, deltaPct }
+  }, [uos])
+
   const porTipo = useMemo(() => {
     return TIPOS_FIJOS.map(tipo => {
       const lista = uos.filter(u => u.tipo_proyecto === tipo)
       const validadas = lista.filter(u => u.estado === 'Validada' || u.estado === 'Cerrada')
       const kmProcesados = validadas.reduce((s, u) => s + (u.km_teoricos || 0), 0)
+      const kmObjetivo = metas[tipo] || null
+      const pctObjetivo = kmObjetivo ? Math.min(100, (kmProcesados / kmObjetivo) * 100) : null
+      const kmFaltante = kmObjetivo ? Math.max(0, kmObjetivo - kmProcesados) : null
       return {
         tipo,
         kmProcesados,
+        kmObjetivo,
+        pctObjetivo,
+        kmFaltante,
         proyectos: lista.length,
+        proyectosValidados: validadas.length,
         evaluacion: evaluacionPromedio(validadas),
       }
     })
-  }, [uos, scorePorUO])
+  }, [uos, scorePorUO, metas])
 
   const distribucionTotal = useMemo(() => {
     const pendientes = uos.filter(u => !['Validada','Cerrada','Rechazada'].includes(u.estado)).reduce((s,u) => s + (u.km_teoricos||0), 0)
@@ -167,12 +202,13 @@ export default function ReporteKM() {
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
         {[
           { label:'KM TEORICOS TOTAL', val: kpisGenerales.kmTotal.toFixed(2)+' km', color:'var(--orange)' },
-          { label:'PROYECTOS PROCESADOS', val: kpisGenerales.procesados, color:'var(--green)' },
-          { label:'EVALUACION PROMEDIO', val: kpisGenerales.evalProm !== null ? kpisGenerales.evalProm.toFixed(1)+'%' : '---', color:'var(--blue)' },
+          { label:'PROYECTOS VALIDADOS', val: kpisGenerales.procesados, color:'var(--green)' },
+          { label:'EVALUACION PROMEDIO', val: kpisGenerales.evalProm !== null ? kpisGenerales.evalProm.toFixed(1)+'%' : '---', color:'var(--blue)', sub: 'Objetivo >'+UMBRAL_EVALUACION+'%' },
         ].map(k => (
           <div key={k.label} style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', padding:'14px 16px' }}>
             <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.1em', marginBottom:'8px' }}>{k.label}</div>
             <div style={{ fontSize:'24px', fontWeight:'700', color:k.color }}>{k.val}</div>
+            {k.sub && <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginTop:'4px' }}>{k.sub}</div>}
           </div>
         ))}
       </div>
@@ -183,20 +219,76 @@ export default function ReporteKM() {
             <div style={{ padding:'9px 14px', borderBottom:'0.5px solid var(--border2)', background:'var(--surface2)' }}>
               <span style={{ fontWeight:'700', fontSize:'12px' }}>{t.tipo}</span>
             </div>
-            <div style={{ padding:'12px 14px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-              <div>
-                <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>KM PROCESADOS</div>
-                <div style={{ fontSize:'16px', fontWeight:'700', color:'var(--orange)' }}>{t.kmProcesados.toFixed(2)}</div>
+
+            {t.tipo === 'Active Line' ? (
+              <div style={{ padding:'12px 14px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px' }}>
+                  <div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>KM ACUMULADOS</div>
+                    <div style={{ fontSize:'16px', fontWeight:'700', color:'var(--orange)' }}>{t.kmProcesados.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>PROYECTOS</div>
+                    <div style={{ fontSize:'16px', fontWeight:'700' }}>{t.proyectos}</div>
+                  </div>
+                </div>
+                <div style={{ borderTop:'0.5px solid var(--border2)', paddingTop:'10px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                  <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)' }}>CRECIMIENTO ESTE MES</div>
+                  <div style={{ display:'flex', alignItems:'baseline', gap:'6px' }}>
+                    <span style={{ fontSize:'14px', fontWeight:'700', color: crecimientoActiveLine.deltaKm >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                      {crecimientoActiveLine.deltaKm >= 0 ? '+' : ''}{crecimientoActiveLine.deltaKm.toFixed(2)} km
+                    </span>
+                    {crecimientoActiveLine.deltaPct !== null && (
+                      <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>
+                        ({crecimientoActiveLine.deltaPct >= 0 ? '+' : ''}{crecimientoActiveLine.deltaPct.toFixed(0)}% vs mes anterior)
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)' }}>{crecimientoActiveLine.clientesMesActual} cliente(s) nuevo(s)</div>
+                </div>
+                <div style={{ marginTop:'10px' }}>
+                  <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>EVALUACION</div>
+                  <div style={{ fontSize:'16px', fontWeight:'700', color:'var(--green)' }}>{t.evaluacion !== null ? t.evaluacion.toFixed(1)+'%' : '---'}</div>
+                </div>
               </div>
-              <div>
-                <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>PROYECTOS</div>
-                <div style={{ fontSize:'16px', fontWeight:'700' }}>{t.proyectos}</div>
+            ) : (
+              <div style={{ padding:'12px 14px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom: t.kmObjetivo ? '8px' : '10px' }}>
+                  <div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>KM PROCESADOS</div>
+                    <div style={{ fontSize:'16px', fontWeight:'700', color:'var(--orange)' }}>
+                      {t.kmProcesados.toFixed(2)}{t.kmObjetivo ? <span style={{ fontSize:'10px', color:'var(--muted2)', fontWeight:'400' }}> / {t.kmObjetivo} km</span> : ''}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>PROYECTOS</div>
+                    <div style={{ fontSize:'16px', fontWeight:'700' }}>{t.proyectosValidados}</div>
+                  </div>
+                </div>
+
+                {t.kmObjetivo ? (
+                  <div style={{ marginBottom:'10px' }}>
+                    <div style={{ height:'6px', background:'var(--border2)', borderRadius:'3px', overflow:'hidden', marginBottom:'4px' }}>
+                      <div style={{ height:'100%', width:t.pctObjetivo+'%', borderRadius:'3px', background:'var(--orange)' }} />
+                    </div>
+                    <div style={{ display:'flex', justifyContent:'space-between' }}>
+                      <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)' }}>{t.pctObjetivo.toFixed(1)}% del objetivo</span>
+                      <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)' }}>Faltan {t.kmFaltante.toFixed(2)} km</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', marginBottom:'10px' }}>Objetivo sin definir</div>
+                )}
+
+                <div>
+                  <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>EVALUACION</div>
+                  <div style={{ fontSize:'16px', fontWeight:'700', color: t.evaluacion !== null && t.evaluacion >= UMBRAL_EVALUACION ? 'var(--green)' : 'var(--yellow)' }}>
+                    {t.evaluacion !== null ? t.evaluacion.toFixed(1)+'%' : '---'}
+                    <span style={{ fontSize:'9px', color:'var(--muted2)', fontWeight:'400' }}> (obj. &gt;{UMBRAL_EVALUACION}%)</span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>EVALUACION</div>
-                <div style={{ fontSize:'16px', fontWeight:'700', color:'var(--green)' }}>{t.evaluacion !== null ? t.evaluacion.toFixed(1)+'%' : '---'}</div>
-              </div>
-            </div>
+            )}
           </div>
         ))}
       </div>
