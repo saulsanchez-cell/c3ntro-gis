@@ -6,6 +6,7 @@ import { generarCertificado, generarCertificadoConectividad } from '../lib/certi
 
 const FASES = ['Preparacion','Carga parcial','Carga completa']
 const PRIORIDADES = ['P1','P2','P3']
+const USUARIO_AUTORIZADO_DISTANCIA = '7063db07-ed16-4ca5-8c98-53b63d128702'
 
 export default function FichaUO() {
   const { id } = useParams()
@@ -29,6 +30,10 @@ export default function FichaUO() {
   const [motivoPendiente, setMotivoPendiente] = useState({ estado: '', motivo: '' })
   const [showCierreModal, setShowCierreModal] = useState(false)
   const [cierreData, setCierreData] = useState({ confirmado: false, fecha: new Date().toISOString().split('T')[0], nota: '' })
+  const [showDistanciaModal, setShowDistanciaModal] = useState(false)
+  const [distanciaForm, setDistanciaForm] = useState({ valor: '', motivo: '' })
+  const [savingDistancia, setSavingDistancia] = useState(false)
+  const [distanciaError, setDistanciaError] = useState('')
   const [asignacion, setAsignacion] = useState({
     digitalizador_id: '', analista_qa_id: '', prioridad: 'P3',
     link_archivos: '', observaciones: '', metodo_constructivo: '',
@@ -210,11 +215,57 @@ export default function FichaUO() {
     fetchAll()
   }
 
+  async function guardarDistancia() {
+    setDistanciaError('')
+    const valorNuevo = parseFloat(distanciaForm.valor)
+    if (isNaN(valorNuevo) || valorNuevo <= 0) {
+      setDistanciaError('Ingresa un valor numerico mayor a 0.')
+      return
+    }
+    if (!distanciaForm.motivo.trim() || distanciaForm.motivo.trim().length < 10) {
+      setDistanciaError('Explica el motivo de la correccion (minimo 10 caracteres).')
+      return
+    }
+    setSavingDistancia(true)
+    const valorAnterior = uo.km_teoricos ?? null
+
+    const { error: updateError } = await supabase
+      .from('unidades_operativas')
+      .update({
+        km_teoricos: valorNuevo,
+        distancia_origen: 'manual',
+        distancia_editada_por: profile.id,
+        distancia_editada_en: new Date().toISOString(),
+        distancia_conflicto: false,
+      })
+      .eq('id', id)
+
+    if (updateError) {
+      setDistanciaError('No se pudo guardar: ' + updateError.message)
+      setSavingDistancia(false)
+      return
+    }
+
+    await supabase.from('log_distancia').insert({
+      uo_id: id,
+      usuario_id: profile.id,
+      valor_anterior: valorAnterior,
+      valor_nuevo: valorNuevo,
+      motivo: distanciaForm.motivo.trim(),
+    })
+
+    setSavingDistancia(false)
+    setShowDistanciaModal(false)
+    setDistanciaForm({ valor: '', motivo: '' })
+    fetchAll()
+  }
+
   if (loading) return <div style={{ padding:'40px', fontFamily:'var(--mono)', fontSize:'11px', color:'var(--muted2)' }}>Cargando ficha...</div>
   if (!uo) return <div style={{ padding:'40px', fontFamily:'var(--mono)', fontSize:'11px', color:'var(--red)' }}>No encontrada</div>
 
   const esCoordinador = profile?.rol === 'coordinador'
   const esQA = profile?.id === uo.analista_qa_id
+  const puedeEditarDistancia = profile?.id === USUARIO_AUTORIZADO_DISTANCIA
   const pctAvance = logs[0]?.porcentaje_avance ?? 0
   const ultimoPct = logs[0]?.porcentaje_avance ?? 0
   const noAvanza = logForm.porcentaje_avance <= ultimoPct && logs.length > 0
@@ -289,15 +340,33 @@ export default function FichaUO() {
         </div>
 
         <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', border:'0.5px solid var(--border2)', borderRadius:'7px', overflow:'hidden' }}>
+          <div style={{ padding:'9px 12px', borderRight:'0.5px solid var(--border2)' }}>
+            <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.09em', marginBottom:'4px' }}>KM TEORICOS</div>
+            <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+              <span style={{ fontFamily:'var(--mono)', fontSize:'11px', color:'var(--orange)' }}>
+                {uo.km_teoricos ? uo.km_teoricos + ' km' : '---'}
+              </span>
+              {puedeEditarDistancia && (
+                <button
+                  onClick={() => { setDistanciaForm({ valor: uo.km_teoricos || '', motivo: '' }); setDistanciaError(''); setShowDistanciaModal(true) }}
+                  title="Editar distancia"
+                  style={{ width:'18px', height:'18px', padding:0, display:'flex', alignItems:'center', justifyContent:'center', border:'0.5px solid var(--border2)', borderRadius:'3px', background:'none', color:'var(--muted2)', cursor:'pointer', fontSize:'9px', lineHeight:1 }}>
+                  ✎
+                </button>
+              )}
+              {uo.distancia_origen === 'manual' && (
+                <span title="Valor corregido manualmente" style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'1px 5px', borderRadius:'3px', background:'rgba(59,130,246,0.1)', color:'var(--blue)' }}>M</span>
+              )}
+            </div>
+          </div>
           {[
-            { label:'KM TEORICOS', val: uo.km_teoricos ? uo.km_teoricos + ' km' : '---', color:'var(--orange)' },
             { label:'FECHA ASIGNACION', val: uo.fecha_asignacion ?? '---' },
             { label:'FECHA CARGA', val: uo.fecha_carga_final ?? '---' },
             { label:'DIAS PROCESO', val: uo.dias_proceso === 0 ? 'Mismo dia' : uo.dias_proceso ? uo.dias_proceso + 'd' : '---', color: uo.dias_proceso > 3 ? 'var(--red)' : undefined },
             { label:'SLA OBJETIVO', val: '3d habiles' },
             { label:'NO REVISION', val: uo.no_revision ?? 0 },
           ].map((m,i) => (
-            <div key={i} style={{ padding:'9px 12px', borderRight: i < 5 ? '0.5px solid var(--border2)' : 'none' }}>
+            <div key={i} style={{ padding:'9px 12px', borderRight: i < 4 ? '0.5px solid var(--border2)' : 'none' }}>
               <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.09em', marginBottom:'4px' }}>{m.label}</div>
               <div style={{ fontFamily:'var(--mono)', fontSize:'11px', color: m.color || 'var(--text)' }}>{m.val}</div>
             </div>
@@ -611,6 +680,60 @@ export default function FichaUO() {
                 disabled={motivoPendiente.motivo.trim().length < 20}
                 style={{ padding:'7px 14px', borderRadius:'5px', border:'none', background:'var(--orange)', color:'#080808', fontSize:'10px', fontFamily:'var(--mono)', fontWeight:'500', opacity: motivoPendiente.motivo.trim().length >= 20 ? 1 : 0.4 }}>
                 CONFIRMAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDistanciaModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
+          <div style={{ background:'var(--surface)', border:'0.5px solid var(--border)', borderRadius:'10px', padding:'24px', width:'400px', display:'flex', flexDirection:'column', gap:'14px' }}>
+            <div style={{ fontWeight:'700', fontSize:'15px' }}>Editar distancia</div>
+            <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>
+              REF · {uo.referencia_operativa} · {uo.nombre}
+            </div>
+
+            <div>
+              <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>VALOR ACTUAL</div>
+              <div style={{ fontFamily:'var(--mono)', fontSize:'11px', color:'var(--muted2)' }}>
+                {uo.km_teoricos ? uo.km_teoricos + ' km' : 'Sin dato'}
+                {uo.distancia_origen && <span style={{ marginLeft:'8px', fontSize:'8px' }}>({uo.distancia_origen})</span>}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>NUEVA DISTANCIA (KM) *</div>
+              <input type="number" step="0.01" value={distanciaForm.valor}
+                onChange={e => setDistanciaForm(f => ({ ...f, valor: e.target.value }))}
+                placeholder="ej. 3.45" />
+            </div>
+
+            <div>
+              <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>MOTIVO DE LA CORRECCION *</div>
+              <textarea rows={3} value={distanciaForm.motivo}
+                onChange={e => setDistanciaForm(f => ({ ...f, motivo: e.target.value }))}
+                placeholder="Bypass instalado, sin dato en Vetro..."
+                style={{ resize:'vertical', fontSize:'11px' }} />
+              <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color: distanciaForm.motivo.trim().length >= 10 ? 'var(--green)' : 'var(--muted2)', marginTop:'3px' }}>
+                {distanciaForm.motivo.trim().length}/10 caracteres minimo
+              </div>
+            </div>
+
+            {distanciaError && (
+              <div style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--red)', background:'rgba(239,68,68,0.08)', border:'0.5px solid rgba(239,68,68,0.2)', borderRadius:'5px', padding:'8px 12px' }}>
+                {distanciaError}
+              </div>
+            )}
+
+            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+              <button onClick={() => { setShowDistanciaModal(false); setDistanciaError('') }}
+                style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid var(--border)', background:'none', color:'var(--muted2)', fontSize:'10px', fontFamily:'var(--mono)' }}>
+                CANCELAR
+              </button>
+              <button onClick={guardarDistancia} disabled={savingDistancia}
+                style={{ padding:'7px 14px', borderRadius:'5px', border:'none', background:'var(--orange)', color:'#080808', fontSize:'10px', fontFamily:'var(--mono)', fontWeight:'500' }}>
+                {savingDistancia ? 'GUARDANDO...' : 'GUARDAR DISTANCIA'}
               </button>
             </div>
           </div>
