@@ -221,44 +221,44 @@ export default function ReporteKM() {
 
     function tipoCard(x, w, t) {
       sf(C.surface); sd(C.border)
-      pdf.roundedRect(x,y,w,72,3,3,'FD')
+      pdf.roundedRect(x,y,w,90,3,3,'FD')
       // header
-      sf(C.border); pdf.roundedRect(x,y,w,15,3,3,'F'); r(x,y+9,w,6)
+      sf(C.border); pdf.roundedRect(x,y,w,16,3,3,'F'); r(x,y+10,w,6)
       st(C.white); pdf.setFontSize(8); pdf.setFont('helvetica','bold')
-      pdf.text(t.tipo, x+8, y+11)
+      pdf.text(t.tipo, x+8, y+12)
       // km procesados
       st(C.muted); pdf.setFontSize(6); pdf.setFont('helvetica','normal')
-      pdf.text('KM PROCESADOS', x+8, y+23)
-      st(C.orange); pdf.setFontSize(10); pdf.setFont('helvetica','bold')
-      pdf.text(t.kmProcesados.toFixed(2), x+8, y+31)
+      pdf.text('KM PROCESADOS', x+8, y+25)
+      st(C.orange); pdf.setFontSize(11); pdf.setFont('helvetica','bold')
+      pdf.text(t.kmProcesados.toFixed(2), x+8, y+36)
       if (t.kmObjetivo) {
-        st(C.muted); pdf.setFontSize(6); pdf.setFont('helvetica','normal')
-        pdf.text(`/ ${t.kmObjetivo} km`, x+8, y+39)
+        st(C.muted); pdf.setFontSize(7); pdf.setFont('helvetica','normal')
+        pdf.text(`/ ${t.kmObjetivo} km`, x+8, y+45)
       }
       // proyectos
       const midX = x + w/2 + 4
       st(C.muted); pdf.setFontSize(6); pdf.setFont('helvetica','normal')
-      pdf.text(t.tipo === 'Active Line' ? 'VALIDADOS / TOTAL' : 'PROYECTOS VALIDADOS', midX, y+23)
-      st(C.white); pdf.setFontSize(10); pdf.setFont('helvetica','bold')
+      pdf.text(t.tipo === 'Active Line' ? 'VALIDADOS / TOTAL' : 'PROYECTOS VALIDADOS', midX, y+25)
+      st(C.white); pdf.setFontSize(11); pdf.setFont('helvetica','bold')
       const projTxt = t.tipo === 'Active Line'
         ? `${t.proyectosValidados} / ${t.totalUOs}`
         : String(t.proyectosValidados)
-      pdf.text(projTxt, midX, y+32)
+      pdf.text(projTxt, midX, y+36)
       // barra progreso
       if (t.kmObjetivo && t.pctObjetivo !== null) {
-        sf(C.border); r(x+8,y+37,w-16,4)
-        sf(C.orange);  r(x+8,y+37,Math.max(1,(w-16)*t.pctObjetivo/100),4)
+        sf(C.border); r(x+8,y+51,w-16,4)
+        sf(C.orange);  r(x+8,y+51,Math.max(1,(w-16)*t.pctObjetivo/100),4)
         st(C.muted); pdf.setFontSize(6); pdf.setFont('helvetica','normal')
-        pdf.text(`${t.pctObjetivo.toFixed(1)}% del objetivo  ·  Faltan ${t.kmFaltante.toFixed(2)} km`, x+8, y+47)
+        pdf.text(`${t.pctObjetivo.toFixed(1)}% del objetivo  ·  Faltan ${t.kmFaltante.toFixed(2)} km`, x+8, y+61)
       }
       // evaluacion
       st(C.muted); pdf.setFontSize(6); pdf.setFont('helvetica','normal')
-      pdf.text('EVALUACION', x+8, y+56)
+      pdf.text('EVALUACION', x+8, y+70)
       const ec = t.evaluacion !== null && t.evaluacion >= UMBRAL_EVALUACION ? C.green : C.yellow
       st(ec); pdf.setFontSize(9); pdf.setFont('helvetica','bold')
-      pdf.text(t.evaluacion !== null ? t.evaluacion.toFixed(1)+'%' : '---', x+8, y+65)
+      pdf.text(t.evaluacion !== null ? t.evaluacion.toFixed(1)+'%' : '---', x+8, y+80)
       st(C.muted); pdf.setFontSize(6); pdf.setFont('helvetica','normal')
-      pdf.text(`(obj. >${UMBRAL_EVALUACION}%)`, x+8+26, y+65)
+      pdf.text(`(obj. >${UMBRAL_EVALUACION}%)`, x+8+28, y+80)
     }
 
     function dona() {
@@ -368,7 +368,7 @@ export default function ReporteKM() {
     tipoCard(M,        tw, porTipo[0])
     tipoCard(M+tw+8,   tw, porTipo[1])
     tipoCard(M+tw*2+16,tw, porTipo[2])
-    y += 80
+    y += 98
 
     // Dona
     dona()
