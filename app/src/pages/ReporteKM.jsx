@@ -230,11 +230,10 @@ export default function ReporteKM() {
       st(C.muted); pdf.setFontSize(6); pdf.setFont('helvetica','normal')
       pdf.text('KM PROCESADOS', x+8, y+23)
       st(C.orange); pdf.setFontSize(10); pdf.setFont('helvetica','bold')
-      const kmTxt = t.kmProcesados.toFixed(2)
-      pdf.text(kmTxt, x+8, y+32)
+      pdf.text(t.kmProcesados.toFixed(2), x+8, y+31)
       if (t.kmObjetivo) {
-        st(C.muted); pdf.setFontSize(6.5); pdf.setFont('helvetica','normal')
-        pdf.text(` / ${t.kmObjetivo} km`, x+8+pdf.getTextWidth(kmTxt)+1, y+31)
+        st(C.muted); pdf.setFontSize(6); pdf.setFont('helvetica','normal')
+        pdf.text(`/ ${t.kmObjetivo} km`, x+8, y+39)
       }
       // proyectos
       const midX = x + w/2 + 4
