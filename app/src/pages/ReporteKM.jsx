@@ -498,10 +498,16 @@ async function exportarPDFCompleto() {
           <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)', letterSpacing:'0.14em' }}>REPORTE DE AVANCE POR KILOMETRAJE</div>
           <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)', marginTop:'2px' }}>{fechaHoy}</div>
         </div>
-        <button onClick={exportarPDF}
-          style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid rgba(249,115,22,0.3)', background:'rgba(249,115,22,0.08)', color:'var(--orange)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer' }}>
-          DESCARGAR PDF
-        </button>
+        <div style={{ display:'flex', gap:'8px' }}>
+          <button onClick={exportarPDF}
+            style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid var(--border2)', background:'none', color:'var(--muted2)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer' }}>
+            DESCARGAR PDF
+          </button>
+          <button onClick={exportarPDFCompleto}
+            style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid rgba(249,115,22,0.3)', background:'rgba(249,115,22,0.08)', color:'var(--orange)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer' }}>
+            PDF COMPLETO
+          </button>
+        </div>
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
