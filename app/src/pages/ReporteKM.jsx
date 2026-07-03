@@ -106,7 +106,8 @@ export default function ReporteKM() {
         kmObjetivo,
         pctObjetivo,
         kmFaltante,
-        proyectos: lista.length,
+        totalUOs: lista.length,
+        proyectos: validadas.length,
         proyectosValidados: validadas.length,
         evaluacion: evaluacionPromedio(validadas),
       }
@@ -203,7 +204,7 @@ export default function ReporteKM() {
         {[
           { label:'KM TEORICOS TOTAL', val: kpisGenerales.kmTotal.toFixed(2)+' km', color:'var(--orange)' },
           { label:'PROYECTOS VALIDADOS', val: kpisGenerales.procesados, color:'var(--green)' },
-          { label:'EVALUACION PROMEDIO', val: kpisGenerales.evalProm !== null ? kpisGenerales.evalProm.toFixed(1)+'%' : '---', color:'var(--blue)', sub: 'Objetivo >'+UMBRAL_EVALUACION+'%' },
+          { label:'EVALUACION GENERAL PROMEDIO', val: kpisGenerales.evalProm !== null ? kpisGenerales.evalProm.toFixed(1)+'%' : '---', color:'var(--blue)', sub: 'Objetivo >'+UMBRAL_EVALUACION+'%' },
         ].map(k => (
           <div key={k.label} style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', padding:'14px 16px' }}>
             <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.1em', marginBottom:'8px' }}>{k.label}</div>
@@ -228,8 +229,8 @@ export default function ReporteKM() {
                     <div style={{ fontSize:'16px', fontWeight:'700', color:'var(--orange)' }}>{t.kmProcesados.toFixed(2)}</div>
                   </div>
                   <div>
-                    <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>PROYECTOS</div>
-                    <div style={{ fontSize:'16px', fontWeight:'700' }}>{t.proyectos}</div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>VALIDADOS / TOTAL</div>
+                    <div style={{ fontSize:'16px', fontWeight:'700' }}>{t.proyectosValidados}<span style={{ fontSize:'10px', color:'var(--muted2)', fontWeight:'400' }}> / {t.totalUOs === undefined ? t.proyectos : t.totalUOs}</span></div>
                   </div>
                 </div>
                 <div style={{ borderTop:'0.5px solid var(--border2)', paddingTop:'10px', display:'flex', flexDirection:'column', gap:'4px' }}>
