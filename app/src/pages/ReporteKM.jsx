@@ -182,7 +182,311 @@ export default function ReporteKM() {
 
     pdf.save(`Reporte_KM_${new Date().toISOString().split('T')[0]}.pdf`)
   }
+async function exportarPDFCompleto() {
+    const { jsPDF } = await import('jspdf')
 
+    const pdf = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait' })
+    const W = pdf.internal.pageSize.getWidth()
+    const H = pdf.internal.pageSize.getHeight()
+    const M = 36       // margen
+    const COL = W - M * 2
+    const fechaStr = new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' })
+
+    // Colores en RGB
+    const C = {
+      bg:      [13,  17,  23],
+      surface: [22,  27,  34],
+      border:  [48,  54,  61],
+      orange:  [249, 115, 22],
+      green:   [34,  197, 94],
+      red:     [239, 68,  68],
+      gray:    [156, 163, 175],
+      muted:   [110, 118, 129],
+      white:   [230, 237, 243],
+      yellow:  [250, 204, 21],
+      blue:    [59,  130, 246],
+    }
+
+    function setFill(rgb)   { pdf.setFillColor(...rgb) }
+    function setDraw(rgb)   { pdf.setDrawColor(...rgb) }
+    function setTxt(rgb)    { pdf.setTextColor(...rgb) }
+    function rect(x,y,w,h) { pdf.rect(x,y,w,h,'F') }
+
+    // Fondo negro en cada página
+    function bgPage() {
+      setFill(C.bg)
+      rect(0, 0, W, H)
+    }
+
+    let y = M
+
+    function checkPage(needed = 60) {
+      if (y + needed > H - M) {
+        pdf.addPage()
+        bgPage()
+        y = M
+      }
+    }
+
+    function sectionTitle(txt) {
+      checkPage(30)
+      setTxt(C.muted)
+      pdf.setFontSize(7)
+      pdf.setFont('helvetica','bold')
+      pdf.text(txt.toUpperCase(), M, y)
+      y += 4
+      setFill(C.border)
+      rect(M, y, COL, 0.5)
+      y += 10
+    }
+
+    function kpiCard(x, cardW, label, val, rgb) {
+      setFill(C.surface)
+      setDraw(C.border)
+      pdf.roundedRect(x, y, cardW, 44, 3, 3, 'FD')
+      setTxt(C.muted)
+      pdf.setFontSize(6.5)
+      pdf.setFont('helvetica','normal')
+      pdf.text(label, x+8, y+13)
+      setTxt(rgb)
+      pdf.setFontSize(18)
+      pdf.setFont('helvetica','bold')
+      pdf.text(String(val), x+8, y+34)
+    }
+
+    function tipoCard(x, cardW, t) {
+      const cardH = 70
+      setFill(C.surface)
+      setDraw(C.border)
+      pdf.roundedRect(x, y, cardW, cardH, 3, 3, 'FD')
+
+      // Header
+      setFill(C.border)
+      pdf.roundedRect(x, y, cardW, 16, 3, 3, 'F')
+      rect(x, y+10, cardW, 6)
+      setTxt(C.white)
+      pdf.setFontSize(8)
+      pdf.setFont('helvetica','bold')
+      pdf.text(t.tipo, x+8, y+11)
+
+      // KM procesados
+      setTxt(C.muted)
+      pdf.setFontSize(6)
+      pdf.setFont('helvetica','normal')
+      pdf.text('KM PROCESADOS', x+8, y+24)
+      setTxt(C.orange)
+      pdf.setFontSize(11)
+      pdf.setFont('helvetica','bold')
+      const kmTxt = t.kmProcesados.toFixed(2)
+      pdf.text(kmTxt, x+8, y+34)
+      if (t.kmObjetivo) {
+        setTxt(C.muted)
+        pdf.setFontSize(7)
+        pdf.setFont('helvetica','normal')
+        const kmW = pdf.getTextWidth(kmTxt)
+        pdf.text(` / ${t.kmObjetivo} km`, x+8+kmW+1, y+34)
+      }
+
+      // Proyectos
+      setTxt(C.muted)
+      pdf.setFontSize(6)
+      pdf.text(t.tipo === 'Active Line' ? 'VALIDADOS / TOTAL' : 'PROYECTOS VALIDADOS', x + cardW/2 + 4, y+24)
+      setTxt(C.white)
+      pdf.setFontSize(11)
+      pdf.setFont('helvetica','bold')
+      pdf.text(String(t.proyectosValidados) + (t.tipo === 'Active Line' ? ` / ${t.totalUOs ?? t.proyectos}` : ''), x + cardW/2 + 4, y+34)
+
+      // Barra de progreso (Tikva y Baseline)
+      if (t.kmObjetivo && t.pctObjetivo !== null) {
+        setFill(C.border)
+        rect(x+8, y+39, cardW-16, 4)
+        setFill(C.orange)
+        rect(x+8, y+39, Math.max(1,(cardW-16) * t.pctObjetivo / 100), 4)
+        setTxt(C.muted)
+        pdf.setFontSize(6)
+        pdf.setFont('helvetica','normal')
+        pdf.text(`${t.pctObjetivo.toFixed(1)}% del objetivo · Faltan ${t.kmFaltante.toFixed(2)} km`, x+8, y+49)
+      }
+
+      // Evaluacion
+      setTxt(C.muted)
+      pdf.setFontSize(6)
+      pdf.setFont('helvetica','normal')
+      pdf.text('EVALUACION', x+8, y+57)
+      const evalColor = t.evaluacion !== null && t.evaluacion >= UMBRAL_EVALUACION ? C.green : C.yellow
+      setTxt(evalColor)
+      pdf.setFontSize(9)
+      pdf.setFont('helvetica','bold')
+      pdf.text(t.evaluacion !== null ? t.evaluacion.toFixed(1)+'%' : '---', x+8, y+66)
+      setTxt(C.muted)
+      pdf.setFontSize(6)
+      pdf.setFont('helvetica','normal')
+      pdf.text(`(obj. >${UMBRAL_EVALUACION}%)`, x+8+28, y+66)
+    }
+
+    function rankingSection(datos, titulo) {
+      checkPage(20)
+      sectionTitle(titulo)
+
+      // Header tabla
+      setFill(C.surface)
+      rect(M, y, COL, 14)
+      setTxt(C.muted)
+      pdf.setFontSize(6)
+      pdf.setFont('helvetica','bold')
+      pdf.text('#',         M+4,       y+9)
+      pdf.text('NOMBRE',   M+18,      y+9)
+      pdf.text('KM VALID.', M+COL*0.55, y+9)
+      pdf.text('KM TOTAL',  M+COL*0.68, y+9)
+      pdf.text('% AVANCE',  M+COL*0.81, y+9)
+      pdf.text('PROGRESO',  M+COL*0.90, y+9)
+      y += 14
+
+      datos.forEach((g, i) => {
+        checkPage(14)
+        // Fondo alternado
+        if (i % 2 === 0) { setFill([18,23,30]); rect(M, y, COL, 13) }
+
+        const pct = g.pctAvance
+        const barColor = pct >= 90 ? C.green : pct >= 50 ? C.yellow : C.red
+
+        setTxt(C.muted)
+        pdf.setFontSize(7)
+        pdf.setFont('helvetica','normal')
+        pdf.text(String(i+1),              M+4,        y+9)
+        setTxt(C.white)
+        pdf.text(g.nombre.substring(0,30), M+18,       y+9)
+        setTxt(C.white)
+        pdf.text(g.validados.toFixed(2),   M+COL*0.55, y+9)
+        setTxt(C.muted)
+        pdf.text(g.total.toFixed(2),       M+COL*0.68, y+9)
+        setTxt(barColor)
+        pdf.setFont('helvetica','bold')
+        pdf.text(pct.toFixed(1)+'%',       M+COL*0.81, y+9)
+
+        // Mini barra
+        const barX = M + COL*0.90
+        const barW = COL*0.09
+        setFill(C.border)
+        rect(barX, y+4, barW, 5)
+        setFill(barColor)
+        rect(barX, y+4, Math.max(1, barW * pct/100), 5)
+
+        y += 13
+      })
+      y += 10
+    }
+
+    function donaSeccion() {
+      checkPage(100)
+      sectionTitle('DISTRIBUCION TOTAL DE KM')
+
+      const cx = M + 55, cy = y + 50, r = 40
+      const total = distribucionTotal.pendientes + distribucionTotal.validados + distribucionTotal.rechazados
+      const segmentos = [
+        { val: distribucionTotal.validados,  color: C.green,  label: 'Validados' },
+        { val: distribucionTotal.pendientes, color: C.red,    label: 'Pendientes' },
+        { val: distribucionTotal.rechazados, color: C.gray,   label: 'Rechazados' },
+      ].filter(s => s.val > 0)
+
+      let startAngle = -Math.PI / 2
+      segmentos.forEach(seg => {
+        const slice = (seg.val / total) * 2 * Math.PI
+        const endAngle = startAngle + slice
+        // Dibuja arco como polígono aproximado
+        const steps = Math.max(6, Math.round(slice * 20))
+        const pts = [[cx, cy]]
+        for (let s = 0; s <= steps; s++) {
+          const a = startAngle + (slice * s / steps)
+          pts.push([cx + Math.cos(a)*r, cy + Math.sin(a)*r])
+        }
+        setFill(seg.color)
+        pdf.triangle(pts[0][0],pts[0][1], pts[1][0],pts[1][1], pts[2][0],pts[2][1],'F')
+        for (let s = 2; s < pts.length-1; s++) {
+          pdf.triangle(pts[0][0],pts[0][1], pts[s][0],pts[s][1], pts[s+1][0],pts[s+1][1],'F')
+        }
+        startAngle = endAngle
+      })
+
+      // Hueco central (dona)
+      setFill(C.bg)
+      pdf.circle(cx, cy, r*0.55, 'F')
+
+      // Leyenda a la derecha
+      let ly = y + 20
+      segmentos.forEach(seg => {
+        setFill(seg.color)
+        rect(M+105, ly, 8, 8)
+        setTxt(C.white)
+        pdf.setFontSize(8)
+        pdf.setFont('helvetica','normal')
+        pdf.text(`${seg.label}: ${seg.val.toFixed(2)} km`, M+118, ly+7)
+        ly += 16
+      })
+
+      y += 110
+    }
+
+    // ── PÁGINA 1: Portada + KPIs + Fichas por tipo ──────────────────────────
+    bgPage()
+
+    // Título
+    setTxt(C.muted)
+    pdf.setFontSize(8)
+    pdf.setFont('helvetica','normal')
+    pdf.text('REPORTE DE AVANCE POR KILOMETRAJE — COMPLETO', M, y)
+    y += 12
+    setTxt(C.muted)
+    pdf.setFontSize(7)
+    pdf.text(fechaStr, M, y)
+    y += 20
+
+    // KPIs generales
+    const kpiW = (COL - 16) / 3
+    kpiCard(M,              kpiW, 'KM TEORICOS TOTAL',       kpisGenerales.kmTotal.toFixed(2)+' km', C.orange)
+    kpiCard(M+kpiW+8,       kpiW, 'PROYECTOS VALIDADOS',     String(kpisGenerales.procesados),       C.green)
+    kpiCard(M+kpiW*2+16,    kpiW, 'EVALUACION GENERAL PROM.', kpisGenerales.evalProm !== null ? kpisGenerales.evalProm.toFixed(1)+'%' : '---', C.blue)
+    y += 56
+
+    // Fichas por tipo
+    const tipoW = (COL - 16) / 3
+    tipoCard(M,           tipoW, porTipo[0])
+    tipoCard(M+tipoW+8,   tipoW, porTipo[1])
+    tipoCard(M+tipoW*2+16,tipoW, porTipo[2])
+    y += 82
+
+    // Dona
+    donaSeccion()
+
+    // ── Rankings ─────────────────────────────────────────────────────────────
+    const calcAgrupado = (keyFn, excluir) => {
+      const grupos = {}
+      uos.forEach(u => {
+        const key = keyFn(u)
+        if (excluir.includes(key)) return
+        if (!grupos[key]) grupos[key] = { nombre: key, pendientes:0, validados:0, rechazados:0, total:0 }
+        const km = u.km_teoricos || 0
+        grupos[key].total += km
+        if (u.estado === 'Validada' || u.estado === 'Cerrada') grupos[key].validados += km
+        else if (u.estado === 'Rechazada') grupos[key].rechazados += km
+        else grupos[key].pendientes += km
+      })
+      return Object.values(grupos)
+        .filter(g => g.total > 0)
+        .map(g => ({ ...g, pctAvance: g.total > 0 ? (g.validados/g.total)*100 : 0 }))
+        .sort((a,b) => b.pctAvance - a.pctAvance)
+    }
+
+    const porEntidad     = calcAgrupado(u => u.entidad_federativa || 'Sin entidad',    ['Sin entidad'])
+    const porTipoRanking = calcAgrupado(u => u.tipo_proyecto      || 'Sin clasificar', ['Sin clasificar'])
+    const porDigit       = calcAgrupado(u => u.digitalizador?.nombre || 'Sin asignar', ['Sin asignar'])
+
+    rankingSection(porEntidad,     'Ranking por Entidad Federativa')
+    rankingSection(porTipoRanking, 'Ranking por Tipo de Proyecto')
+    rankingSection(porDigit,       'Ranking por Digitalizador')
+
+    pdf.save(`Reporte_KM_Completo_${new Date().toISOString().split('T')[0]}.pdf`)
+  }
   if (loading) return <div style={{ padding:'40px', fontFamily:'var(--mono)', fontSize:'11px', color:'var(--muted2)' }}>Cargando reporte...</div>
 
   const fechaHoy = new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' })
