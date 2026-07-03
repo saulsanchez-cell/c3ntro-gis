@@ -221,38 +221,33 @@ export default function ReporteKM() {
               <span style={{ fontWeight:'700', fontSize:'12px' }}>{t.tipo}</span>
             </div>
 
-            {t.tipo === 'Active Line' ? (
-              <div style={{ padding:'12px 14px' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px' }}>
-                  <div>
-                    <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>KM ACUMULADOS</div>
-                    <div style={{ fontSize:'16px', fontWeight:'700', color:'var(--orange)' }}>{t.kmProcesados.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>VALIDADOS / TOTAL</div>
-                    <div style={{ fontSize:'16px', fontWeight:'700' }}>{t.proyectosValidados}<span style={{ fontSize:'10px', color:'var(--muted2)', fontWeight:'400' }}> / {t.totalUOs === undefined ? t.proyectos : t.totalUOs}</span></div>
-                  </div>
-                </div>
-                <div style={{ borderTop:'0.5px solid var(--border2)', paddingTop:'10px', display:'flex', flexDirection:'column', gap:'4px' }}>
-                  <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)' }}>CRECIMIENTO ESTE MES</div>
-                  <div style={{ display:'flex', alignItems:'baseline', gap:'6px' }}>
-                    <span style={{ fontSize:'14px', fontWeight:'700', color: crecimientoActiveLine.deltaKm >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                      {crecimientoActiveLine.deltaKm >= 0 ? '+' : ''}{crecimientoActiveLine.deltaKm.toFixed(2)} km
-                    </span>
-                    {crecimientoActiveLine.deltaPct !== null && (
-                      <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>
-                        ({crecimientoActiveLine.deltaPct >= 0 ? '+' : ''}{crecimientoActiveLine.deltaPct.toFixed(0)}% vs mes anterior)
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)' }}>{crecimientoActiveLine.clientesMesActual} cliente(s) nuevo(s)</div>
-                </div>
-                <div style={{ marginTop:'10px' }}>
-                  <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>EVALUACION</div>
-                  <div style={{ fontSize:'16px', fontWeight:'700', color:'var(--green)' }}>{t.evaluacion !== null ? t.evaluacion.toFixed(1)+'%' : '---'}</div>
-                </div>
-              </div>
-            ) : (
+           {t.tipo === 'Active Line' ? (
+  <div style={{ padding:'12px 14px' }}>
+    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px' }}>
+      <div>
+        <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>KM ACUMULADOS</div>
+        <div style={{ fontSize:'16px', fontWeight:'700', color:'var(--orange)' }}>{t.kmProcesados.toFixed(2)}</div>
+      </div>
+      <div>
+        <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>VALIDADOS / TOTAL</div>
+        <div style={{ fontSize:'16px', fontWeight:'700' }}>{t.proyectosValidados}<span style={{ fontSize:'10px', color:'var(--muted2)', fontWeight:'400' }}> / {t.totalUOs}</span></div>
+      </div>
+    </div>
+    <div>
+      <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>EVALUACION</div>
+      <div style={{ fontSize:'16px', fontWeight:'700', color: t.evaluacion !== null && t.evaluacion >= UMBRAL_EVALUACION ? 'var(--green)' : 'var(--yellow)' }}>
+        {t.evaluacion !== null ? t.evaluacion.toFixed(1)+'%' : '---'}
+        <span style={{ fontSize:'9px', color:'var(--muted2)', fontWeight:'400' }}> (obj. &gt;{UMBRAL_EVALUACION}%)</span>
+      </div>
+    </div>
+    <div style={{ marginTop:'10px', paddingTop:'8px', borderTop:'0.5px solid var(--border2)' }}>
+      <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)' }}>
+        Este mes: {crecimientoActiveLine.deltaKm >= 0 ? '+' : ''}{crecimientoActiveLine.deltaKm.toFixed(2)} km
+        {crecimientoActiveLine.clientesMesActual > 0 && ` · ${crecimientoActiveLine.clientesMesActual} cliente(s) nuevo(s)`}
+      </span>
+    </div>
+  </div>
+) : (
               <div style={{ padding:'12px 14px' }}>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom: t.kmObjetivo ? '8px' : '10px' }}>
                   <div>
