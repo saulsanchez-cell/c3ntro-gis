@@ -74,7 +74,7 @@ export default function Overview() {
   return (
     <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:'14px' }}>
       {uosConCoords.length > 0 && (
-        <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'10px', padding:'14px 16px' }}>
+        <div style={{ background:'rgba(17,24,32,0.55)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', border:'0.5px solid rgba(255,255,255,0.08)', borderRadius:'10px', padding:'14px 16px' }}>
           <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.14em', marginBottom:'10px', display:'flex', justifyContent:'space-between' }}>
             <span>MAPA DE AVANCE GEOGRAFICO</span>
             <span style={{ color:'var(--muted2)' }}>{uosConCoords.length} UOs con coordenadas</span>
@@ -148,7 +148,7 @@ export default function Overview() {
           { label:'VALIDADAS', val:stats.validadas, color:'var(--green)', accent:'var(--green)' },
           { label:'ALERTAS SLA', val:stats.sla_alto, color:'var(--red)', accent:'var(--red)' },
         ].map(k => (
-          <div key={k.label} style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', padding:'14px 15px', position:'relative', overflow:'hidden' }}>
+          <div key={k.label} style={{ background:'rgba(17,24,32,0.55)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', border:'0.5px solid rgba(255,255,255,0.08)', borderRadius:'8px', padding:'14px 15px', position:'relative', overflow:'hidden' }}>
             <div style={{ position:'absolute', top:0, left:0, right:0, height:'2px', background:k.accent }} />
             <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)', letterSpacing:'0.09em', marginBottom:'7px' }}>{k.label}</div>
             <div style={{ fontFamily:'var(--disp)', fontSize:'28px', fontWeight:'800', color:k.color, lineHeight:'1' }}>{k.val}</div>
@@ -156,10 +156,10 @@ export default function Overview() {
         ))}
       </div>
       <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)', letterSpacing:'0.14em' }}>FLUJO DE ESTADOS</div>
-      <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', padding:'13px 15px' }}>
+      <div style={{ background:'rgba(17,24,32,0.55)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', border:'0.5px solid rgba(255,255,255,0.08)', borderRadius:'8px', padding:'13px 15px' }}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'6px' }}>
           {ESTADOS.map(e => (
-            <div key={e} style={{ background:'var(--surface2)', border:'0.5px solid var(--border2)', borderRadius:'7px', padding:'11px 6px', textAlign:'center', cursor:'pointer' }}
+            <div key={e} style={{ background:'rgba(24,33,46,0.5)', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', border:'0.5px solid rgba(255,255,255,0.07)', borderRadius:'7px', padding:'11px 6px', textAlign:'center', cursor:'pointer' }}
               onClick={() => navigate('/backlog')}>
               <div style={{ fontFamily:'var(--disp)', fontSize:'22px', fontWeight:'800', color:ESTADO_COLOR[e]||'var(--muted2)' }}>
                 {stats.por_estado[e]||0}
@@ -172,7 +172,7 @@ export default function Overview() {
         </div>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1.4fr 1fr', gap:'8px' }}>
-        <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', padding:'13px 15px' }}>
+        <div style={{ background:'rgba(17,24,32,0.55)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', border:'0.5px solid rgba(255,255,255,0.08)', borderRadius:'8px', padding:'13px 15px' }}>
           <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.12em', marginBottom:'10px' }}>POR TIPO DE PROYECTO</div>
           <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
             {Object.entries(stats.por_tipo).map(([tipo, total]) => (
@@ -189,7 +189,7 @@ export default function Overview() {
             {Object.keys(stats.por_tipo).length === 0 && <div style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted)' }}>Sin datos aun</div>}
           </div>
         </div>
-        <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', padding:'13px 15px' }}>
+        <div style={{ background:'rgba(17,24,32,0.55)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', border:'0.5px solid rgba(255,255,255,0.08)', borderRadius:'8px', padding:'13px 15px' }}>
           <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.12em', marginBottom:'10px' }}>ALERTAS SLA ACTIVAS</div>
           <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
             {alertas.length === 0 && <div style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted)' }}>Sin alertas activas</div>}

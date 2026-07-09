@@ -97,7 +97,7 @@ function KanbanView({ uos, navigate }) {
       {columnas.map(estado => {
         const items = uos.filter(u => u.estado === estado)
         return (
-          <div key={estado} style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', overflow:'hidden' }}>
+          <div key={estado} style={{ background:'rgba(17,24,32,0.6)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', border:'0.5px solid rgba(255,255,255,0.08)', borderRadius:'8px', overflow:'hidden' }}>
             <div style={{ height:'2px', background: ESTADO_COLOR[estado] || 'var(--muted)' }} />
             <div style={{ padding:'9px 11px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'0.5px solid var(--border2)' }}>
               <span style={{ fontFamily:'var(--mono)', fontSize:'9px', letterSpacing:'0.1em', color:'var(--muted2)' }}>{estado.toUpperCase()}</span>
@@ -106,7 +106,7 @@ function KanbanView({ uos, navigate }) {
             <div style={{ padding:'8px', display:'flex', flexDirection:'column', gap:'6px', maxHeight:'500px', overflowY:'auto' }}>
               {items.slice(0,10).map(u => (
                 <div key={u.id} onClick={() => navigate('/backlog/'+u.id)}
-                  style={{ background:'var(--surface2)', border:'0.5px solid var(--border2)',
+                  style={{ background:'rgba(24,33,46,0.55)', backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)', border:'0.5px solid rgba(255,255,255,0.07)',
                     borderLeft:'2px solid '+(u.prioridad==='P1' ? 'var(--orange)' : u.sla_validacion > 3 ? 'var(--red)' : 'var(--border2)'),
                     borderRadius:'6px', padding:'9px 10px', cursor:'pointer' }}>
                   <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--orange)', marginBottom:'3px' }}>{u.referencia_operativa}</div>

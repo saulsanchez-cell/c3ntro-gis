@@ -73,3 +73,11 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--surface4); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* ── Glass effect ─────────────────────────────────────────────────────────── */
+.glass {
+  background:        rgba(22, 27, 34, 0.55) !important;
+  backdrop-filter:   blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border:            0.5px solid rgba(255,255,255,0.08) !important;
+}
