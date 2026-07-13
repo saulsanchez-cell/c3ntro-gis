@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { AuthProvider, useAuth } from "./context/AuthContext"
-import Topbar from "./components/Topbar"
+import Sidebar from "./components/Sidebar"
 import Login from "./pages/Login"
 import Overview from "./pages/Overview"
 import Backlog from "./pages/Backlog"
@@ -17,20 +17,22 @@ function ProtectedLayout() {
   const { user, loading } = useAuth()
   if (loading) return <div style={{ minHeight:"100vh", background:"var(--bg)", display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ fontFamily:"var(--mono)", fontSize:"11px", color:"var(--muted2)" }}>CARGANDO...</div></div>
   return (
-    <div style={{ minHeight:"100vh" }}>
-      <Topbar />
-      <Routes>
-        <Route path="/" element={<Overview />} />
-        <Route path="/backlog" element={<Backlog />} />
-        <Route path="/backlog/nueva" element={<NuevaUO />} />
-        <Route path="/backlog/:id" element={<FichaUO />} />
-        <Route path="/backlog/:id/checklist" element={<Checklist />} />
-        <Route path="/equipo" element={<Equipo />} />
-        <Route path="/reportes" element={<Reportes />} />
-        <Route path="/alertas" element={<Alertas />} />
-        <Route path="/calidad" element={<Calidad />} />
-        <Route path="/reporte-km" element={<ReporteKM />} />
-      </Routes>
+    <div style={{ minHeight:"100vh", display:"grid", gridTemplateColumns:"236px 1fr" }}>
+      <Sidebar />
+      <main style={{ minWidth:0, overflowX:"hidden" }}>
+        <Routes>
+          <Route path="/" element={<Overview />} />
+          <Route path="/backlog" element={<Backlog />} />
+          <Route path="/backlog/nueva" element={<NuevaUO />} />
+          <Route path="/backlog/:id" element={<FichaUO />} />
+          <Route path="/backlog/:id/checklist" element={<Checklist />} />
+          <Route path="/equipo" element={<Equipo />} />
+          <Route path="/reportes" element={<Reportes />} />
+          <Route path="/alertas" element={<Alertas />} />
+          <Route path="/calidad" element={<Calidad />} />
+          <Route path="/reporte-km" element={<ReporteKM />} />
+        </Routes>
+      </main>
     </div>
   )
 }

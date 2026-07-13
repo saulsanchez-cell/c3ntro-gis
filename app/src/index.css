@@ -2,6 +2,9 @@
 @import url('https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css');
 
 :root {
+  --accent-a: #8B5CF6;
+  --accent-b: #38BDF8;
+  --accent-gradient: linear-gradient(135deg, var(--accent-a), var(--accent-b));
   --bg:       #0a0f16;
   --surface:  #111820;
   --surface2: #18212e;
@@ -81,3 +84,52 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
   -webkit-backdrop-filter: blur(12px);
   border:            0.5px solid rgba(255,255,255,0.08) !important;
 }
+
+/* ── Sidebar ──────────────────────────────────────────────────────────────── */
+.sigo-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  background: var(--surface);
+  border-right: 0.5px solid var(--border);
+  padding: 18px 12px 14px 12px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+.nav-group { display: flex; flex-direction: column; gap: 2px; }
+.nav-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 10px 6px 10px;
+  font-weight: 500;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted2);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  letter-spacing: 0.03em;
+}
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active {
+  background: linear-gradient(90deg, rgba(139,92,246,0.16), rgba(56,189,248,0.05));
+  color: var(--text);
+  box-shadow: inset 2px 0 0 0 var(--accent-a);
+}
+.nav-item svg { width: 14px; height: 14px; opacity: 0.75; flex-shrink: 0; }
+.nav-item.active svg { opacity: 1; }
