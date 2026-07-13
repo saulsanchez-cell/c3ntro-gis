@@ -3,7 +3,36 @@ import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 
 const ESTADOS = ['Pendiente','Asignada','En Proceso','En Validacion','Validada','Rechazada','Bloqueada','En Correccion']
-const ESTADO_COLOR = { Pendiente:'var(--muted2)', Asignada:'var(--orange)', 'En Proceso':'var(--yellow)', 'En Validacion':'var(--yellow)', Validada:'var(--green)', Rechazada:'var(--red)', Bloqueada:'var(--red)', 'En Correccion':'var(--blue)' }
+const ESTADO_COLOR = { Pendiente:'var(--muted2)', Asignada:'var(--orange)', 'En Proceso':'var(--blue)', 'En Validacion':'var(--accent-a)', Validada:'var(--green)', Rechazada:'var(--red)', Bloqueada:'var(--red)', 'En Correccion':'var(--yellow)' }
+const ESTADO_LABEL = { Pendiente:'Pendiente', Asignada:'Asignada', 'En Proceso':'En proceso', 'En Validacion':'En validación', Validada:'Validada', Rechazada:'Rechazada', Bloqueada:'Bloqueada', 'En Correccion':'En corrección' }
+
+const AVATAR_COLORS = ['#8B5CF6', '#38BDF8', '#F5A623', '#34D399', '#F2545B', '#EC4899', '#22D3EE', '#A78BFA']
+function colorAvatar(seed) {
+  if (!seed) return AVATAR_COLORS[0]
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) % AVATAR_COLORS.length
+  return AVATAR_COLORS[Math.abs(hash)]
+}
+
+function Pill({ color, children }) {
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 7px', borderRadius:999, fontSize:7.5, fontFamily:'var(--mono)', fontWeight:600, background:color+'22', color, border:'1px solid '+color+'40' }}>
+      {children}
+    </span>
+  )
+}
+
+function EstadoBadge({ estado, size = 'sm' }) {
+  const color = ESTADO_COLOR[estado] || 'var(--muted2)'
+  const label = ESTADO_LABEL[estado] || estado
+  const fs = size === 'sm' ? 10 : 11
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding: size==='sm' ? '2px 8px' : '4px 10px', borderRadius:999, fontSize:fs, fontWeight:600, background:color+'1A', color, border:'1px solid '+color+'40' }}>
+      <span style={{ width:5, height:5, borderRadius:'50%', background:color }} />
+      {label}
+    </span>
+  )
+}
 
 export default function Backlog() {
   const navigate = useNavigate()
@@ -49,7 +78,7 @@ export default function Backlog() {
   if (loading) return <div style={{ padding:'40px', fontFamily:'var(--mono)', fontSize:'11px', color:'var(--muted2)' }}>Cargando backlog...</div>
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 53px)' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 20px', background:'var(--surface)', borderBottom:'0.5px solid var(--border2)', flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
           <span style={{ fontWeight:'700', fontSize:'14px' }}>Backlog operativo</span>
@@ -96,31 +125,41 @@ function KanbanView({ uos, navigate }) {
     <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'8px', alignItems:'start', minWidth:'900px' }}>
       {columnas.map(estado => {
         const items = uos.filter(u => u.estado === estado)
+        const color = ESTADO_COLOR[estado] || 'var(--muted)'
         return (
-          <div key={estado} style={{ background:'rgba(17,24,32,0.6)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', border:'0.5px solid rgba(255,255,255,0.08)', borderRadius:'8px', overflow:'hidden' }}>
-            <div style={{ height:'2px', background: ESTADO_COLOR[estado] || 'var(--muted)' }} />
+          <div key={estado} className="glass" style={{ borderRadius:'8px', overflow:'hidden' }}>
+            <div style={{ height:'2px', background: color }} />
             <div style={{ padding:'9px 11px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'0.5px solid var(--border2)' }}>
               <span style={{ fontFamily:'var(--mono)', fontSize:'9px', letterSpacing:'0.1em', color:'var(--muted2)' }}>{estado.toUpperCase()}</span>
-              <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color: ESTADO_COLOR[estado] }}>{items.length}</span>
+              <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color, background:color+'1A', borderRadius:999, padding:'1px 7px' }}>{items.length}</span>
             </div>
             <div style={{ padding:'8px', display:'flex', flexDirection:'column', gap:'6px', maxHeight:'500px', overflowY:'auto' }}>
               {items.slice(0,10).map(u => (
-                <div key={u.id} onClick={() => navigate('/backlog/'+u.id)}
-                  style={{ background:'rgba(24,33,46,0.55)', backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)', border:'0.5px solid rgba(255,255,255,0.07)',
-                    borderLeft:'2px solid '+(u.prioridad==='P1' ? 'var(--orange)' : u.sla_validacion > 3 ? 'var(--red)' : 'var(--border2)'),
+                <div key={u.id} onClick={() => navigate('/backlog/'+u.id)} className="glass"
+                  style={{ borderLeft:'2px solid '+(u.prioridad==='P1' ? 'var(--orange)' : u.sla_validacion > 3 ? 'var(--red)' : 'var(--border2)'),
                     borderRadius:'6px', padding:'9px 10px', cursor:'pointer' }}>
                   <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--orange)', marginBottom:'3px' }}>{u.referencia_operativa}</div>
-                  <div style={{ fontSize:'10px', color:'var(--text)', lineHeight:'1.3', marginBottom:'6px' }}>{u.nombre}</div>
+                  <div style={{ fontSize:'10px', color:'var(--text)', lineHeight:'1.3', marginBottom:'7px' }}>{u.nombre}</div>
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                    <div style={{ display:'flex', gap:'4px' }}>
-                      {u.prioridad==='P1' && <span style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'2px 5px', borderRadius:'3px', background:'rgba(249,115,22,0.15)', color:'var(--orange)' }}>P1</span>}
-                      {u.sla_validacion > 3 && <span style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'2px 5px', borderRadius:'3px', background:'rgba(239,68,68,0.13)', color:'var(--red)' }}>SLA {u.sla_validacion}d</span>}
-                      <span style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'2px 5px', borderRadius:'3px', background:'rgba(120,120,120,0.1)', color:'var(--muted2)' }}>{u.tipo_proyecto}</span>
+                    <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
+                      {u.prioridad==='P1' && <Pill color="var(--orange)">P1</Pill>}
+                      {u.sla_validacion > 3 && <Pill color="var(--red)">SLA {u.sla_validacion}d</Pill>}
+                      <Pill color="var(--muted2)">{u.tipo_proyecto}</Pill>
                     </div>
                     <div style={{ display:'flex', gap:'3px' }}>
-      {u.digitalizador && <div title={'Digitalizador: '+u.digitalizador.nombre} style={{ width:'18px', height:'18px', borderRadius:'50%', background:'rgba(34,197,94,0.12)', color:'var(--green)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--mono)', fontSize:'7px' }}>{u.digitalizador.iniciales}</div>}
-      {['En Validacion','Validada','Cerrada'].includes(u.estado) && u.analista_qa && <div title={'Analista QA: '+u.analista_qa.nombre} style={{ width:'18px', height:'18px', borderRadius:'50%', background:'rgba(59,130,246,0.12)', color:'var(--blue)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--mono)', fontSize:'7px' }}>{u.analista_qa.iniciales}</div>}
-</div>
+                      {u.digitalizador && (
+                        <div title={'Digitalizador: '+u.digitalizador.nombre}
+                          style={{ width:'18px', height:'18px', borderRadius:'50%', background:colorAvatar(u.digitalizador_id)+'2A', color:colorAvatar(u.digitalizador_id), display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--mono)', fontSize:'7px', fontWeight:600 }}>
+                          {u.digitalizador.iniciales}
+                        </div>
+                      )}
+                      {['En Validacion','Validada','Cerrada'].includes(u.estado) && u.analista_qa && (
+                        <div title={'Analista QA: '+u.analista_qa.nombre}
+                          style={{ width:'18px', height:'18px', borderRadius:'50%', background:colorAvatar(u.analista_qa_id)+'2A', color:colorAvatar(u.analista_qa_id), display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--mono)', fontSize:'7px', fontWeight:600 }}>
+                          {u.analista_qa.iniciales}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -172,13 +211,27 @@ function ListView({ uos, navigate }) {
                 </td>
                 <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)', fontFamily:'var(--mono)', fontSize:'10px', color:'var(--orange)' }}>{u.referencia_operativa}</td>
                 <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)', fontSize:'10px', maxWidth:'180px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u.nombre}</td>
-                <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)', fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>{u.tipo_proyecto}</td>
+                <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)' }}><Pill color="var(--muted2)">{u.tipo_proyecto}</Pill></td>
                 <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)', fontFamily:'var(--mono)', fontSize:'10px' }}>{u.km_teoricos}</td>
-                <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)', fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted2)' }}>{u.digitalizador?.nombre ?? '---'}</td>
-                <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)', fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted2)' }}>{u.analista_qa?.nombre ?? '---'}</td>
+                <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)' }}>
+                  {u.digitalizador ? (
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <div style={{ width:18, height:18, borderRadius:'50%', background:colorAvatar(u.digitalizador_id)+'2A', color:colorAvatar(u.digitalizador_id), display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--mono)', fontSize:7, fontWeight:600, flexShrink:0 }}>{u.digitalizador.iniciales}</div>
+                      <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted2)' }}>{u.digitalizador.nombre}</span>
+                    </div>
+                  ) : <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted)' }}>---</span>}
+                </td>
+                <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)' }}>
+                  {u.analista_qa ? (
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <div style={{ width:18, height:18, borderRadius:'50%', background:colorAvatar(u.analista_qa_id)+'2A', color:colorAvatar(u.analista_qa_id), display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--mono)', fontSize:7, fontWeight:600, flexShrink:0 }}>{u.analista_qa.iniciales}</div>
+                      <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted2)' }}>{u.analista_qa.nombre}</span>
+                    </div>
+                  ) : <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted)' }}>---</span>}
+                </td>
                 <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)', fontFamily:'var(--mono)', fontSize:'10px', color: !u.sla_validacion ? 'var(--muted)' : u.sla_validacion > 3 ? 'var(--red)' : 'var(--green)' }}>{u.sla_validacion ? u.sla_validacion+'d' : '---'}</td>
                 <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)' }}>
-                  <span style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'2px 7px', borderRadius:'3px', background:'var(--surface3)', color: ESTADO_COLOR[u.estado] || 'var(--muted2)' }}>{u.estado}</span>
+                  <EstadoBadge estado={u.estado} />
                 </td>
               </tr>
             ))}
