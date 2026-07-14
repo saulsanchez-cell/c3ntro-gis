@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { AuthProvider, useAuth } from "./context/AuthContext"
+import { useState } from "react"
 import Sidebar from "./components/Sidebar"
 import Login from "./pages/Login"
 import Overview from "./pages/Overview"
@@ -15,10 +16,12 @@ import ReporteKM from './pages/ReporteKM'
 
 function ProtectedLayout() {
   const { user, loading } = useAuth()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   if (loading) return <div style={{ minHeight:"100vh", background:"var(--bg)", display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ fontFamily:"var(--mono)", fontSize:"11px", color:"var(--muted2)" }}>CARGANDO...</div></div>
   return (
-    <div style={{ minHeight:"100vh", display:"grid", gridTemplateColumns:"236px 1fr" }}>
-      <Sidebar />
+    <div className="sigo-layout">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)} aria-label="Abrir menú">☰</button>
       <main style={{ minWidth:0, overflowX:"hidden" }}>
         <Routes>
           <Route path="/" element={<Overview />} />

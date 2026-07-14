@@ -13,7 +13,7 @@ const ICONS = {
   reportes: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 19V5a2 2 0 012-2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><path d="M9 13h6M9 17h6M9 9h2"/></svg>,
 }
 
-export default function Sidebar() {
+export default function Sidebar({ open, onClose }) {
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -48,6 +48,11 @@ export default function Sidebar() {
     }
   }
 
+  function irA(path) {
+    navigate(path)
+    if (onClose) onClose()
+  }
+
   const GROUPS = [
     {
       label: 'Operación',
@@ -74,101 +79,105 @@ export default function Sidebar() {
   ]
 
   return (
-    <aside className="sigo-sidebar">
-      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'4px 10px 14px 10px', borderBottom:'0.5px solid var(--border2)', marginBottom:4 }}>
-        <img src="/logo_sigo_small.png" alt="SIGO" style={{ width:28, height:'auto', flexShrink:0 }} />
-        <div>
-          <div style={{ fontFamily:'var(--disp)', fontWeight:800, fontSize:15, letterSpacing:'0.04em' }}>SIGO</div>
-          <div style={{ fontFamily:'var(--mono)', fontSize:8, color:'var(--muted2)', letterSpacing:'0.08em' }}>
-            {profile?.rol?.toUpperCase() ?? '—'}
+    <>
+      {open && <div className="sidebar-overlay" onClick={onClose} />}
+      <aside className={'sigo-sidebar' + (open ? ' open' : '')}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'4px 10px 14px 10px', borderBottom:'0.5px solid var(--border2)', marginBottom:4 }}>
+          <img src="/logo_sigo_small.png" alt="SIGO" style={{ width:28, height:'auto', flexShrink:0 }} />
+          <div>
+            <div style={{ fontFamily:'var(--disp)', fontWeight:800, fontSize:15, letterSpacing:'0.04em' }}>SIGO</div>
+            <div style={{ fontFamily:'var(--mono)', fontSize:8, color:'var(--muted2)', letterSpacing:'0.08em' }}>
+              {profile?.rol?.toUpperCase() ?? '—'}
+            </div>
+          </div>
+          <button className="sidebar-close-btn" onClick={onClose} aria-label="Cerrar menú">✕</button>
+        </div>
+
+        {GROUPS.map(group => {
+          const items = group.items.filter(i => !i.soloCoordinador || profile?.rol === 'coordinador')
+          if (items.length === 0) return null
+          return (
+            <div className="nav-group" key={group.label}>
+              <div className="nav-label">{group.label}</div>
+              {items.map(item => (
+                <button
+                  key={item.path}
+                  className={'nav-item' + (location.pathname === item.path ? ' active' : '')}
+                  onClick={() => irA(item.path)}
+                >
+                  {ICONS[item.icon]}
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )
+        })}
+
+        <div style={{ marginTop:'auto', display:'flex', flexDirection:'column', gap:10, padding:'10px 10px 4px 10px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ width:28, height:28, borderRadius:'50%', background:'rgba(249,115,22,0.15)',
+              color:'var(--orange)', display:'flex', alignItems:'center', justifyContent:'center',
+              fontFamily:'var(--mono)', fontSize:10, fontWeight:500, flexShrink:0 }}>
+              {profile?.iniciales ?? '??'}
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:5, fontFamily:'var(--mono)', fontSize:8, color:'var(--muted2)' }}>
+              <div style={{ width:5, height:5, borderRadius:'50%', background:'var(--green)' }} />
+              EN VIVO
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:6 }}>
+            <button onClick={() => setShowPasswordModal(true)} style={{ flex:1, fontFamily:'var(--mono)', fontSize:8.5,
+              color:'var(--muted2)', background:'none', border:'0.5px solid var(--border)',
+              borderRadius:4, padding:'6px 4px' }}>
+              CONTRASEÑA
+            </button>
+            <button onClick={signOut} style={{ flex:1, fontFamily:'var(--mono)', fontSize:8.5,
+              color:'var(--muted2)', background:'none', border:'0.5px solid var(--border)',
+              borderRadius:4, padding:'6px 4px' }}>
+              SALIR
+            </button>
           </div>
         </div>
-      </div>
 
-      {GROUPS.map(group => {
-        const items = group.items.filter(i => !i.soloCoordinador || profile?.rol === 'coordinador')
-        if (items.length === 0) return null
-        return (
-          <div className="nav-group" key={group.label}>
-            <div className="nav-label">{group.label}</div>
-            {items.map(item => (
-              <button
-                key={item.path}
-                className={'nav-item' + (location.pathname === item.path ? ' active' : '')}
-                onClick={() => navigate(item.path)}
-              >
-                {ICONS[item.icon]}
-                {item.label}
-              </button>
-            ))}
-          </div>
-        )
-      })}
-
-      <div style={{ marginTop:'auto', display:'flex', flexDirection:'column', gap:10, padding:'10px 10px 4px 10px' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <div style={{ width:28, height:28, borderRadius:'50%', background:'rgba(249,115,22,0.15)',
-            color:'var(--orange)', display:'flex', alignItems:'center', justifyContent:'center',
-            fontFamily:'var(--mono)', fontSize:10, fontWeight:500, flexShrink:0 }}>
-            {profile?.iniciales ?? '??'}
-          </div>
-          <div style={{ display:'flex', alignItems:'center', gap:5, fontFamily:'var(--mono)', fontSize:8, color:'var(--muted2)' }}>
-            <div style={{ width:5, height:5, borderRadius:'50%', background:'var(--green)' }} />
-            EN VIVO
-          </div>
-        </div>
-        <div style={{ display:'flex', gap:6 }}>
-          <button onClick={() => setShowPasswordModal(true)} style={{ flex:1, fontFamily:'var(--mono)', fontSize:8.5,
-            color:'var(--muted2)', background:'none', border:'0.5px solid var(--border)',
-            borderRadius:4, padding:'6px 4px' }}>
-            CONTRASEÑA
-          </button>
-          <button onClick={signOut} style={{ flex:1, fontFamily:'var(--mono)', fontSize:8.5,
-            color:'var(--muted2)', background:'none', border:'0.5px solid var(--border)',
-            borderRadius:4, padding:'6px 4px' }}>
-            SALIR
-          </button>
-        </div>
-      </div>
-
-      {showPasswordModal && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div style={{ background:'var(--surface)', border:'0.5px solid var(--border)', borderRadius:'10px', padding:'24px', width:'380px', display:'flex', flexDirection:'column', gap:'14px' }}>
-            <div style={{ fontWeight:'700', fontSize:'14px' }}>Cambiar contraseña</div>
-            {passwordSuccess ? (
-              <div style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--green)', background:'rgba(34,197,94,0.08)', border:'0.5px solid rgba(34,197,94,0.2)', borderRadius:'5px', padding:'10px 12px' }}>
-                Contraseña actualizada correctamente.
-              </div>
-            ) : (
-              <>
-                <div>
-                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>NUEVA CONTRASEÑA</div>
-                  <input type="password" value={passwordForm.nueva} onChange={e => setPasswordForm(f => ({ ...f, nueva: e.target.value }))} placeholder="Mínimo 6 caracteres" />
+        {showPasswordModal && (
+          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
+            <div style={{ background:'var(--surface)', border:'0.5px solid var(--border)', borderRadius:'10px', padding:'24px', width:'380px', maxWidth:'90vw', display:'flex', flexDirection:'column', gap:'14px' }}>
+              <div style={{ fontWeight:'700', fontSize:'14px' }}>Cambiar contraseña</div>
+              {passwordSuccess ? (
+                <div style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--green)', background:'rgba(34,197,94,0.08)', border:'0.5px solid rgba(34,197,94,0.2)', borderRadius:'5px', padding:'10px 12px' }}>
+                  Contraseña actualizada correctamente.
                 </div>
-                <div>
-                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>CONFIRMAR CONTRASEÑA</div>
-                  <input type="password" value={passwordForm.confirmar} onChange={e => setPasswordForm(f => ({ ...f, confirmar: e.target.value }))} placeholder="Repite la contraseña" />
-                </div>
-                {passwordError && (
-                  <div style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--red)', background:'rgba(239,68,68,0.08)', border:'0.5px solid rgba(239,68,68,0.2)', borderRadius:'5px', padding:'8px 12px' }}>
-                    {passwordError}
+              ) : (
+                <>
+                  <div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>NUEVA CONTRASEÑA</div>
+                    <input type="password" value={passwordForm.nueva} onChange={e => setPasswordForm(f => ({ ...f, nueva: e.target.value }))} placeholder="Mínimo 6 caracteres" />
                   </div>
-                )}
-                <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-                  <button onClick={() => { setShowPasswordModal(false); setPasswordForm({ nueva:'', confirmar:'' }); setPasswordError('') }}
-                    style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid var(--border)', background:'none', color:'var(--muted2)', fontSize:'10px', fontFamily:'var(--mono)' }}>
-                    CANCELAR
-                  </button>
-                  <button onClick={handleCambiarPassword} disabled={savingPassword}
-                    style={{ padding:'7px 14px', borderRadius:'5px', border:'none', background:'var(--orange)', color:'#080808', fontSize:'10px', fontFamily:'var(--mono)', fontWeight:'500' }}>
-                    {savingPassword ? 'GUARDANDO...' : 'GUARDAR'}
-                  </button>
-                </div>
-              </>
-            )}
+                  <div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>CONFIRMAR CONTRASEÑA</div>
+                    <input type="password" value={passwordForm.confirmar} onChange={e => setPasswordForm(f => ({ ...f, confirmar: e.target.value }))} placeholder="Repite la contraseña" />
+                  </div>
+                  {passwordError && (
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--red)', background:'rgba(239,68,68,0.08)', border:'0.5px solid rgba(239,68,68,0.2)', borderRadius:'5px', padding:'8px 12px' }}>
+                      {passwordError}
+                    </div>
+                  )}
+                  <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+                    <button onClick={() => { setShowPasswordModal(false); setPasswordForm({ nueva:'', confirmar:'' }); setPasswordError('') }}
+                      style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid var(--border)', background:'none', color:'var(--muted2)', fontSize:'10px', fontFamily:'var(--mono)' }}>
+                      CANCELAR
+                    </button>
+                    <button onClick={handleCambiarPassword} disabled={savingPassword}
+                      style={{ padding:'7px 14px', borderRadius:'5px', border:'none', background:'var(--orange)', color:'#080808', fontSize:'10px', fontFamily:'var(--mono)', fontWeight:'500' }}>
+                      {savingPassword ? 'GUARDANDO...' : 'GUARDAR'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      )}
-    </aside>
+        )}
+      </aside>
+    </>
   )
 }
