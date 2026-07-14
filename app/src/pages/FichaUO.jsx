@@ -339,7 +339,7 @@ export default function FichaUO() {
           </div>
         </div>
 
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', border:'0.5px solid var(--border2)', borderRadius:'7px', overflow:'hidden' }}>
+        <div className="ficha-stats-grid" style={{ border:'0.5px solid var(--border2)', borderRadius:'7px', overflow:'hidden' }}>
           <div style={{ padding:'9px 12px', borderRight:'0.5px solid var(--border2)' }}>
             <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.09em', marginBottom:'4px' }}>KM TEORICOS</div>
             <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
@@ -384,7 +384,7 @@ export default function FichaUO() {
         </div>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 320px' }}>
+      <div className="ficha-grid">
         <div style={{ borderRight:'0.5px solid var(--border2)' }}>
 
           {uo.estado === 'En Correccion' && hallazgos.length > 0 && (

@@ -191,3 +191,21 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
   }
   main { padding-top: 52px; }
 }
+
+
+/* ── FichaUO responsive ───────────────────────────────────────────────────── */
+.ficha-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+}
+.ficha-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+}
+
+@media (max-width: 768px) {
+  .ficha-grid { grid-template-columns: 1fr; }
+  .ficha-stats-grid { grid-template-columns: repeat(3, 1fr); }
+  .ficha-stats-grid > div:nth-child(n+4) { border-top: 0.5px solid var(--border2); }
+  select, input, textarea { font-size: 16px !important; padding: 10px 12px !important; }
+}
