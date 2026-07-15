@@ -15,7 +15,8 @@ import Calidad from './pages/Calidad'
 import ReporteKM from './pages/ReporteKM'
 
 function ProtectedLayout() {
-  const { user, loading } = useAuth()
+  const { user, loading, passwordRecovery } = useAuth()
+  if (passwordRecovery) return <ResetPassword />
   const [sidebarOpen, setSidebarOpen] = useState(false)
   if (loading) return <div style={{ minHeight:"100vh", background:"var(--bg)", display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ fontFamily:"var(--mono)", fontSize:"11px", color:"var(--muted2)" }}>CARGANDO...</div></div>
   return (

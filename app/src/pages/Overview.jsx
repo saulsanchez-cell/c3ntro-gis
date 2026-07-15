@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import MapaAvance from '../components/MapaAvance'
+import { contarAlertasActivas } from '../lib/alertas'
 
 const ESTADOS = ['Pendiente','Asignada','En Proceso','En Validacion','Validada','Rechazada']
 const ESTADO_COLOR = { Pendiente:'var(--muted2)', Asignada:'var(--orange)', 'En Proceso':'var(--blue)', 'En Validacion':'var(--accent-a)', Validada:'var(--green)', Rechazada:'var(--red)', 'En Correccion':'var(--yellow)' }
@@ -110,7 +111,8 @@ function Prioridad({ p }) {
 export default function Overview() {
   const navigate = useNavigate()
   const { profile } = useAuth()
-  const [stats, setStats] = useState({ total:0, validadas:0, sla_alto:0, pendientes:0, por_estado:{}, por_tipo:{} })
+  const [stats, setStats] = useState({ total:0, validadas:0, pendientes:0, por_estado:{}, por_tipo:{} })
+  const [alertasActivas, setAlertasActivas] = useState(0)
   const [comp, setComp] = useState({ nuevasEsteMes:null, nuevasMesPasado:null, validadasEsteMes:null, validadasMesPasado:null, scoreActual:null, scoreMesPasado:null })
   const [sparkInventario, setSparkInventario] = useState([])
   const [sparkValidadas, setSparkValidadas] = useState([])
@@ -160,9 +162,9 @@ export default function Overview() {
       por_estado[u.estado] = (por_estado[u.estado] || 0) + 1
       por_tipo[u.tipo_proyecto] = (por_tipo[u.tipo_proyecto] || 0) + 1
     })
-    const sla_alto = uo.filter(u => u.sla_validacion > 3).length
+    contarAlertasActivas().then(r => setAlertasActivas(r.total))
 
-    setStats({ total: uo.length, validadas: por_estado['Validada'] || 0, pendientes: por_estado['Pendiente'] || 0, sla_alto, por_estado, por_tipo })
+    setStats({ total: uo.length, validadas: por_estado['Validada'] || 0, pendientes: por_estado['Pendiente'] || 0, por_estado, por_tipo })
 
     const esteMes = rangoMes(0)
     const mesPasado = rangoMes(-1)
@@ -230,7 +232,7 @@ export default function Overview() {
     { label:'SCORE QA PROMEDIO', val: comp.scoreActual!==null ? comp.scoreActual.toFixed(1)+'%' : '—', icon:'star',
       delta: (comp.scoreActual!==null && comp.scoreMesPasado!==null) ? <Delta actual={comp.scoreActual} anterior={comp.scoreMesPasado} sufijo=' pts' /> : null,
       spark: sparkScore, sparkColor:'var(--accent-a)' },
-    { label:'ALERTAS ACTIVAS', val: stats.sla_alto.toLocaleString(), icon:'alerta', delta:null, spark:null },
+    { label:'ALERTAS ACTIVAS', val: alertasActivas.toLocaleString(), icon:'alerta', delta:null, spark:null },
   ]
 
   return (
