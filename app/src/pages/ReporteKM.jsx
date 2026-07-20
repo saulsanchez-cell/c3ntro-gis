@@ -10,6 +10,28 @@ const COLOR_RECHAZADO = '#9CA3AF'
 const COLOR_EN_PROCESO = '#FACC15'
 const UMBRAL_EVALUACION = 97
 
+const ICONS = {
+  ruta: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.2 17.5L15 8.5"/></svg>,
+  check: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6L9 17l-5-5"/></svg>,
+  gauge: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 12L16 8"/><circle cx="12" cy="12" r="9"/><path d="M12 21a9 9 0 01-9-9"/></svg>,
+}
+
+function Kpi({ icon, label, value, color = 'var(--text)', sub }) {
+  return (
+    <div className="glass" style={{ borderRadius:'10px', padding:'14px 16px', display:'flex', alignItems:'center', gap:'12px' }}>
+      <div style={{ width:32, height:32, flexShrink:0, borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center',
+        background:'linear-gradient(135deg, rgba(139,92,246,0.22), rgba(56,189,248,0.16))', border:'1px solid rgba(139,92,246,0.25)', color:'var(--accent-a)' }}>
+        <div style={{ width:17, height:17 }}>{icon}</div>
+      </div>
+      <div style={{ minWidth:0 }}>
+        <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', letterSpacing:'0.1em', marginBottom:'3px' }}>{label}</div>
+        <div style={{ fontFamily:'var(--disp)', fontSize:'26px', fontWeight:800, color, lineHeight:1.15 }}>{value}</div>
+        {sub && <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginTop:'2px' }}>{sub}</div>}
+      </div>
+    </div>
+  )
+}
+
 export default function ReporteKM() {
   const [loading, setLoading] = useState(true)
   const [uos, setUos] = useState([])
@@ -389,7 +411,7 @@ export default function ReporteKM() {
     <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:'16px' }} id="reporte-km-container">
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div>
-          <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)', letterSpacing:'0.14em' }}>REPORTE DE AVANCE POR KILOMETRAJE</div>
+          <span style={{ fontFamily:'var(--disp)', fontWeight:700, fontSize:'14px' }}>Reporte de avance por kilometraje</span>
           <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)', marginTop:'2px' }}>{fechaHoy}</div>
         </div>
         <div style={{ display:'flex', gap:'8px' }}>
@@ -398,31 +420,23 @@ export default function ReporteKM() {
             DESCARGAR PDF
           </button>
           <button onClick={exportarPDFCompleto}
-            style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid rgba(249,115,22,0.3)', background:'rgba(249,115,22,0.08)', color:'var(--orange)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer' }}>
+            style={{ padding:'7px 14px', borderRadius:'5px', border:'none', background:'var(--accent-gradient)', color:'#fff', fontSize:'9px', fontFamily:'var(--mono)', fontWeight:600, cursor:'pointer' }}>
             PDF COMPLETO
           </button>
         </div>
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
-        {[
-          { label:'KM TEORICOS TOTAL',       val: kpisGenerales.kmTotal.toFixed(2)+' km', color:'var(--orange)' },
-          { label:'PROYECTOS VALIDADOS',      val: kpisGenerales.procesados,               color:'var(--green)'  },
-          { label:'EVALUACION GENERAL PROMEDIO', val: kpisGenerales.evalProm !== null ? kpisGenerales.evalProm.toFixed(1)+'%' : '---', color:'var(--blue)', sub: 'Objetivo >'+UMBRAL_EVALUACION+'%' },
-        ].map(k => (
-          <div key={k.label} style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', padding:'14px 16px' }}>
-            <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.1em', marginBottom:'8px' }}>{k.label}</div>
-            <div style={{ fontSize:'24px', fontWeight:'700', color:k.color }}>{k.val}</div>
-            {k.sub && <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginTop:'4px' }}>{k.sub}</div>}
-          </div>
-        ))}
+        <Kpi icon={ICONS.ruta} label="KM TEORICOS TOTAL" value={kpisGenerales.kmTotal.toFixed(2)+' km'} color="var(--orange)" />
+        <Kpi icon={ICONS.check} label="PROYECTOS VALIDADOS" value={kpisGenerales.procesados} color="var(--green)" />
+        <Kpi icon={ICONS.gauge} label="EVALUACION GENERAL PROMEDIO" value={kpisGenerales.evalProm !== null ? kpisGenerales.evalProm.toFixed(1)+'%' : '---'} color="var(--blue)" sub={'Objetivo >'+UMBRAL_EVALUACION+'%'} />
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'10px' }}>
         {porTipo.map(t => (
-          <div key={t.tipo} style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', overflow:'hidden' }}>
-            <div style={{ padding:'9px 14px', borderBottom:'0.5px solid var(--border2)', background:'var(--surface2)' }}>
-              <span style={{ fontWeight:'700', fontSize:'12px' }}>{t.tipo}</span>
+          <div key={t.tipo} className="glass" style={{ borderRadius:'10px', overflow:'hidden' }}>
+            <div style={{ padding:'9px 14px', borderBottom:'0.5px solid var(--border2)' }}>
+              <span style={{ fontFamily:'var(--disp)', fontWeight:700, fontSize:'12px' }}>{t.tipo}</span>
             </div>
             {t.tipo === 'Active Line' ? (
               <div style={{ padding:'12px 14px' }}>
@@ -496,16 +510,16 @@ export default function ReporteKM() {
           {[{k:'entidad',l:'ENTIDAD'},{k:'tipo',l:'TIPO PROYECTO'},{k:'digitalizador',l:'DIGITALIZADOR'}].map(o => (
             <button key={o.k} onClick={() => setAgrupacion(o.k)}
               style={{ padding:'4px 10px', borderRadius:'4px', fontSize:'9px', border:'none', fontFamily:'var(--mono)',
-                background: agrupacion===o.k ? 'var(--surface4)' : 'none',
-                color: agrupacion===o.k ? 'var(--text)' : 'var(--muted2)' }}>
+                background: agrupacion===o.k ? 'var(--accent-gradient)' : 'none',
+                color: agrupacion===o.k ? '#fff' : 'var(--muted2)' }}>
               {o.l}
             </button>
           ))}
         </div>
       </div>
 
-      <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', overflow:'hidden' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'40px 1.4fr 90px 90px 70px 1fr', padding:'8px 16px', borderBottom:'0.5px solid var(--border2)', background:'var(--surface2)' }}>
+      <div className="glass" style={{ borderRadius:'10px', overflow:'hidden' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'40px 1.4fr 90px 90px 70px 1fr', padding:'8px 16px', borderBottom:'0.5px solid var(--border2)' }}>
           {['#','NOMBRE','KM VALID.','KM TOTAL','% AVANCE','PROGRESO'].map(h => (
             <span key={h} style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted)', letterSpacing:'0.1em' }}>{h}</span>
           ))}
@@ -526,7 +540,7 @@ export default function ReporteKM() {
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'1.6fr 1fr', gap:'10px' }}>
-        <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', padding:'14px 16px' }}>
+        <div className="glass" style={{ borderRadius:'10px', padding:'14px 16px' }}>
           <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.12em', marginBottom:'10px' }}>KM POR {agrupacion==='entidad'?'ENTIDAD':agrupacion==='tipo'?'TIPO DE PROYECTO':'DIGITALIZADOR'}</div>
           <ResponsiveContainer width="100%" height={Math.max(240, dataAgrupada.length*32)}>
             <BarChart data={dataAgrupada} layout="vertical" margin={{ left:10, right:20 }}>
@@ -540,7 +554,7 @@ export default function ReporteKM() {
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', padding:'14px 16px' }}>
+        <div className="glass" style={{ borderRadius:'10px', padding:'14px 16px' }}>
           <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.12em', marginBottom:'10px' }}>DISTRIBUCION TOTAL DE KM</div>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>

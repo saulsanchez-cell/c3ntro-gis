@@ -1,6 +1,49 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+const ICONS = {
+  clipboard: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="5" y="4" width="14" height="17" rx="1.5"/><path d="M9 4V3a1 1 0 011-1h4a1 1 0 011 1v1"/><path d="M9 11h6M9 15h6"/></svg>,
+  alerta: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>,
+  gauge: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 12L16 8"/><circle cx="12" cy="12" r="9"/><path d="M12 21a9 9 0 01-9-9"/></svg>,
+  target: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>,
+}
+
+function Kpi({ icon, label, value, color = 'var(--text)', small = false }) {
+  return (
+    <div className="glass" style={{ borderRadius:'10px', padding:'14px 16px', display:'flex', alignItems:'center', gap:'12px' }}>
+      <div style={{ width:32, height:32, flexShrink:0, borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center',
+        background:'linear-gradient(135deg, rgba(139,92,246,0.22), rgba(56,189,248,0.16))', border:'1px solid rgba(139,92,246,0.25)', color:'var(--accent-a)' }}>
+        <div style={{ width:17, height:17 }}>{icon}</div>
+      </div>
+      <div style={{ minWidth:0 }}>
+        <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', letterSpacing:'0.1em', marginBottom:'3px' }}>{label}</div>
+        <div style={{ fontFamily:'var(--disp)', fontSize: small ? '13px' : '26px', fontWeight:800, color, lineHeight:1.15, whiteSpace: small ? 'nowrap' : 'normal', overflow: small ? 'hidden' : 'visible', textOverflow: small ? 'ellipsis' : 'clip' }}>{value}</div>
+      </div>
+    </div>
+  )
+}
+
+function TasaBar({ tasa }) {
+  const color = tasa > 0.5 ? 'var(--red)' : tasa > 0.3 ? 'var(--yellow)' : 'var(--green)'
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+      <div style={{ flex:1, height:'4px', background:'var(--border2)', borderRadius:'2px', overflow:'hidden' }}>
+        <div style={{ height:'100%', width:(tasa*100)+'%', borderRadius:'2px', background:color }} />
+      </div>
+      <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color, minWidth:'32px' }}>{(tasa*100).toFixed(0)}%</span>
+    </div>
+  )
+}
+
+function FamiliaPill({ children }) {
+  const color = 'var(--accent-a)'
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 7px', borderRadius:999, fontSize:7.5, fontFamily:'var(--mono)', fontWeight:600, background:color+'1A', color, border:'1px solid '+color+'40' }}>
+      {children}
+    </span>
+  )
+}
+
 export default function Calidad() {
   const [loading, setLoading] = useState(true)
   const [vistaActiva, setVistaActiva] = useState('items')
@@ -96,38 +139,31 @@ export default function Calidad() {
   return (
     <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:'14px' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)', letterSpacing:'0.14em' }}>VISTA DE CALIDAD</div>
+        <span style={{ fontFamily:'var(--disp)', fontWeight:700, fontSize:'14px' }}>Vista de calidad</span>
         <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>{totalRevisiones} revisiones en total</div>
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px' }}>
-        {[
-          { label:'ITEMS REVISADOS', val: itemsError.length, color:'var(--text)' },
-          { label:'CON ERRORES', val: itemsError.filter(i => i.errores > 0).length, color:'var(--red)' },
-          { label:'TASA PROMEDIO', val: itemsError.length > 0 ? (itemsError.reduce((s,i) => s+i.tasa, 0) / itemsError.length * 100).toFixed(1)+'%' : '---', color:'var(--yellow)' },
-          { label:'ITEM MAS PROBLEMATICO', val: itemsError[0]?.nombre?.substring(0,20)+'...' || '---', color:'var(--orange)', small: true },
-        ].map(k => (
-          <div key={k.label} style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', padding:'14px 16px' }}>
-            <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted)', letterSpacing:'0.12em', marginBottom:'8px' }}>{k.label}</div>
-            <div style={{ fontSize: k.small ? '11px' : '24px', fontWeight:'700', color: k.color, lineHeight:'1.2' }}>{k.val}</div>
-          </div>
-        ))}
+        <Kpi icon={ICONS.clipboard} label="ITEMS REVISADOS" value={itemsError.length} />
+        <Kpi icon={ICONS.alerta} label="CON ERRORES" value={itemsError.filter(i => i.errores > 0).length} color="var(--red)" />
+        <Kpi icon={ICONS.gauge} label="TASA PROMEDIO" value={itemsError.length > 0 ? (itemsError.reduce((s,i) => s+i.tasa, 0) / itemsError.length * 100).toFixed(1)+'%' : '---'} color="var(--yellow)" />
+        <Kpi icon={ICONS.target} label="ITEM MAS PROBLEMATICO" value={itemsError[0]?.nombre?.substring(0,20)+'...' || '---'} color="var(--orange)" small />
       </div>
 
       <div style={{ display:'flex', background:'var(--surface2)', borderRadius:'6px', padding:'2px', gap:'1px', width:'fit-content' }}>
         {VISTAS.map(v => (
           <button key={v.key} onClick={() => setVistaActiva(v.key)}
             style={{ padding:'5px 12px', borderRadius:'4px', fontSize:'9px', border:'none', fontFamily:'var(--mono)',
-              background: vistaActiva===v.key ? 'var(--surface4)' : 'none',
-              color: vistaActiva===v.key ? 'var(--text)' : 'var(--muted2)', cursor:'pointer' }}>
+              background: vistaActiva===v.key ? 'var(--accent-gradient)' : 'none',
+              color: vistaActiva===v.key ? '#fff' : 'var(--muted2)', cursor:'pointer' }}>
             {v.label}
           </button>
         ))}
       </div>
 
       {vistaActiva === 'items' && (
-        <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', overflow:'hidden' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 80px 80px 100px', padding:'8px 16px', borderBottom:'0.5px solid var(--border2)', background:'var(--surface2)' }}>
+        <div className="glass" style={{ borderRadius:'10px', overflow:'hidden' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 80px 80px 100px', padding:'8px 16px', borderBottom:'0.5px solid var(--border2)' }}>
             {['ITEM','SECCION','ERRORES','TOTAL','TASA'].map(h => (
               <span key={h} style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted)', letterSpacing:'0.1em' }}>{h}</span>
             ))}
@@ -135,26 +171,21 @@ export default function Calidad() {
           {itemsError.map((item, i) => (
             <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 80px 80px 80px 100px', padding:'10px 16px', borderBottom:'0.5px solid var(--border2)', alignItems:'center' }}>
               <div>
-                <div style={{ fontSize:'10px', color:'var(--text)', marginBottom:'2px' }}>{item.nombre}</div>
-                <span style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'1px 5px', borderRadius:'3px', background:'rgba(120,120,120,0.1)', color:'var(--muted2)' }}>{item.familia}</span>
+                <div style={{ fontSize:'10px', color:'var(--text)', marginBottom:'4px' }}>{item.nombre}</div>
+                <FamiliaPill>{item.familia}</FamiliaPill>
               </div>
               <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>{item.seccion}</span>
               <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--red)', fontWeight:'600' }}>{item.errores}</span>
               <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted2)' }}>{item.total}</span>
-              <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                <div style={{ flex:1, height:'4px', background:'var(--border2)', borderRadius:'2px', overflow:'hidden' }}>
-                  <div style={{ height:'100%', width:(item.tasa*100)+'%', borderRadius:'2px', background: item.tasa > 0.5 ? 'var(--red)' : item.tasa > 0.3 ? 'var(--yellow)' : 'var(--green)' }} />
-                </div>
-                <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color: item.tasa > 0.5 ? 'var(--red)' : item.tasa > 0.3 ? 'var(--yellow)' : 'var(--green)', minWidth:'32px' }}>{(item.tasa*100).toFixed(0)}%</span>
-              </div>
+              <TasaBar tasa={item.tasa} />
             </div>
           ))}
         </div>
       )}
 
       {vistaActiva === 'familia' && (
-        <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', overflow:'hidden' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 80px 100px', padding:'8px 16px', borderBottom:'0.5px solid var(--border2)', background:'var(--surface2)' }}>
+        <div className="glass" style={{ borderRadius:'10px', overflow:'hidden' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 80px 100px', padding:'8px 16px', borderBottom:'0.5px solid var(--border2)' }}>
             {['FAMILIA','ERRORES','TOTAL','TASA'].map(h => (
               <span key={h} style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted)', letterSpacing:'0.1em' }}>{h}</span>
             ))}
@@ -164,20 +195,15 @@ export default function Calidad() {
               <span style={{ fontSize:'10px', color:'var(--text)' }}>{f.nombre}</span>
               <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--red)', fontWeight:'600' }}>{f.errores}</span>
               <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted2)' }}>{f.total}</span>
-              <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                <div style={{ flex:1, height:'4px', background:'var(--border2)', borderRadius:'2px', overflow:'hidden' }}>
-                  <div style={{ height:'100%', width:(f.tasa*100)+'%', borderRadius:'2px', background: f.tasa > 0.5 ? 'var(--red)' : f.tasa > 0.3 ? 'var(--yellow)' : 'var(--green)' }} />
-                </div>
-                <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color: f.tasa > 0.5 ? 'var(--red)' : f.tasa > 0.3 ? 'var(--yellow)' : 'var(--green)', minWidth:'32px' }}>{(f.tasa*100).toFixed(0)}%</span>
-              </div>
+              <TasaBar tasa={f.tasa} />
             </div>
           ))}
         </div>
       )}
 
       {vistaActiva === 'seccion' && (
-        <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', overflow:'hidden' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 80px 100px', padding:'8px 16px', borderBottom:'0.5px solid var(--border2)', background:'var(--surface2)' }}>
+        <div className="glass" style={{ borderRadius:'10px', overflow:'hidden' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 80px 100px', padding:'8px 16px', borderBottom:'0.5px solid var(--border2)' }}>
             {['SECCION','ERRORES','TOTAL','TASA'].map(h => (
               <span key={h} style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted)', letterSpacing:'0.1em' }}>{h}</span>
             ))}
@@ -187,20 +213,15 @@ export default function Calidad() {
               <span style={{ fontSize:'10px', color:'var(--text)' }}>{s.nombre}</span>
               <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--red)', fontWeight:'600' }}>{s.errores}</span>
               <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted2)' }}>{s.total}</span>
-              <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                <div style={{ flex:1, height:'4px', background:'var(--border2)', borderRadius:'2px', overflow:'hidden' }}>
-                  <div style={{ height:'100%', width:(s.tasa*100)+'%', borderRadius:'2px', background: s.tasa > 0.5 ? 'var(--red)' : s.tasa > 0.3 ? 'var(--yellow)' : 'var(--green)' }} />
-                </div>
-                <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color: s.tasa > 0.5 ? 'var(--red)' : s.tasa > 0.3 ? 'var(--yellow)' : 'var(--green)', minWidth:'32px' }}>{(s.tasa*100).toFixed(0)}%</span>
-              </div>
+              <TasaBar tasa={s.tasa} />
             </div>
           ))}
         </div>
       )}
 
       {vistaActiva === 'tipo' && (
-        <div style={{ background:'var(--surface)', border:'0.5px solid var(--border2)', borderRadius:'8px', overflow:'hidden' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 80px 80px 100px', padding:'8px 16px', borderBottom:'0.5px solid var(--border2)', background:'var(--surface2)' }}>
+        <div className="glass" style={{ borderRadius:'10px', overflow:'hidden' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 80px 80px 100px', padding:'8px 16px', borderBottom:'0.5px solid var(--border2)' }}>
             {['TIPO PROYECTO','REVISIONES','ERRORES','TOTAL','TASA'].map(h => (
               <span key={h} style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted)', letterSpacing:'0.1em' }}>{h}</span>
             ))}
@@ -211,12 +232,7 @@ export default function Calidad() {
               <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted2)' }}>{t.revisiones}</span>
               <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--red)', fontWeight:'600' }}>{t.errores}</span>
               <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted2)' }}>{t.total}</span>
-              <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                <div style={{ flex:1, height:'4px', background:'var(--border2)', borderRadius:'2px', overflow:'hidden' }}>
-                  <div style={{ height:'100%', width:(t.tasa*100)+'%', borderRadius:'2px', background: t.tasa > 0.5 ? 'var(--red)' : t.tasa > 0.3 ? 'var(--yellow)' : 'var(--green)' }} />
-                </div>
-                <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color: t.tasa > 0.5 ? 'var(--red)' : t.tasa > 0.3 ? 'var(--yellow)' : 'var(--green)', minWidth:'32px' }}>{(t.tasa*100).toFixed(0)}%</span>
-              </div>
+              <TasaBar tasa={t.tasa} />
             </div>
           ))}
         </div>
