@@ -29,7 +29,13 @@ export default function FichaUO() {
   const [showMotivoModal, setShowMotivoModal] = useState(false)
   const [motivoPendiente, setMotivoPendiente] = useState({ estado: '', motivo: '' })
   const [showCierreModal, setShowCierreModal] = useState(false)
-  const [cierreData, setCierreData] = useState({ confirmado: false, fecha: new Date().toISOString().split('T')[0], nota: '' })
+  const [cierreData, setCierreData] = useState({
+    confirmado: false,
+    fecha: new Date().toISOString().split('T')[0],
+    nota: '',
+    tipo_validacion: 'checklist_qa',
+    referencia_externa: ''
+  })
   const [showDistanciaModal, setShowDistanciaModal] = useState(false)
   const [distanciaForm, setDistanciaForm] = useState({ valor: '', motivo: '' })
   const [savingDistancia, setSavingDistancia] = useState(false)
@@ -183,17 +189,31 @@ export default function FichaUO() {
 
   async function confirmarCierre() {
     if (!cierreData.confirmado) return
+    if (cierreData.tipo_validacion === 'conectividad_externa' && !cierreData.referencia_externa.trim()) return
+
     const estadoAnterior = uo.estado
-    await supabase.from('unidades_operativas').update({ estado: 'Cerrada' }).eq('id', id)
+    const esConectividad = cierreData.tipo_validacion === 'conectividad_externa'
+
+    const updates = { estado: 'Cerrada', tipo_validacion: cierreData.tipo_validacion }
+    if (esConectividad) {
+      updates.referencia_externa = cierreData.referencia_externa.trim()
+      updates.validado_por = profile.id
+      updates.validado_en = new Date().toISOString()
+    }
+
+    await supabase.from('unidades_operativas').update(updates).eq('id', id)
     await supabase.from('historial_estados').insert({
       uo_id: id, usuario_id: profile.id,
       estado_anterior: estadoAnterior, estado_nuevo: 'Cerrada',
-      motivo_texto: `Operational confirmado en Vetro el ${cierreData.fecha}.${cierreData.nota ? ' Nota: ' + cierreData.nota : ''}`,
-      categoria_error: 'Confirmacion cierre',
+      motivo_texto: esConectividad
+        ? `Validacion de conectividad confirmada — ref. ${cierreData.referencia_externa.trim()}.${cierreData.nota ? ' Nota: ' + cierreData.nota : ''}`
+        : `Operational confirmado en Vetro el ${cierreData.fecha}.${cierreData.nota ? ' Nota: ' + cierreData.nota : ''}`,
+      categoria_error: esConectividad ? 'Cierre por conectividad externa' : 'Confirmacion cierre',
       rol_responsable: 'coordinador'
     })
+
     setShowCierreModal(false)
-    setCierreData({ confirmado: false, fecha: new Date().toISOString().split('T')[0], nota: '' })
+    setCierreData({ confirmado: false, fecha: new Date().toISOString().split('T')[0], nota: '', tipo_validacion: 'checklist_qa', referencia_externa: '' })
     setCambioEstado('')
     fetchAll()
   }
@@ -623,6 +643,21 @@ export default function FichaUO() {
               REF · {uo.referencia_operativa} · {uo.nombre}
             </div>
 
+            <div>
+              <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>TIPO DE VALIDACION</div>
+              <select value={cierreData.tipo_validacion} onChange={e => setCierreData(c => ({ ...c, tipo_validacion: e.target.value }))}>
+                <option value="checklist_qa">Checklist QA (digitalizacion normal)</option>
+                <option value="conectividad_externa">Conectividad externa (sin proyecto de planta)</option>
+              </select>
+            </div>
+
+            {cierreData.tipo_validacion === 'conectividad_externa' && (
+              <div>
+                <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>REFERENCIA EXTERNA (SERVICE LOCATION) *</div>
+                <input value={cierreData.referencia_externa} onChange={e => setCierreData(c => ({ ...c, referencia_externa: e.target.value }))} placeholder="ID de service location / empalme..." />
+              </div>
+            )}
+
             <div style={{ background:'rgba(34,197,94,0.05)', border:'0.5px solid rgba(34,197,94,0.2)', borderRadius:'7px', padding:'12px' }}>
               <label style={{ display:'flex', alignItems:'flex-start', gap:'10px', cursor:'pointer' }}>
                 <input type="checkbox" checked={cierreData.confirmado} onChange={e => setCierreData(c => ({ ...c, confirmado: e.target.checked }))}
@@ -646,12 +681,14 @@ export default function FichaUO() {
             </div>
 
             <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-              <button onClick={() => { setShowCierreModal(false); setCambioEstado(''); setCierreData({ confirmado: false, fecha: new Date().toISOString().split('T')[0], nota: '' }) }}
+              <button onClick={() => { setShowCierreModal(false); setCambioEstado(''); setCierreData({ confirmado: false, fecha: new Date().toISOString().split('T')[0], nota: '', tipo_validacion: 'checklist_qa', referencia_externa: '' }) }}
                 style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid var(--border)', background:'none', color:'var(--muted2)', fontSize:'10px', fontFamily:'var(--mono)' }}>
                 CANCELAR
               </button>
-              <button onClick={confirmarCierre} disabled={!cierreData.confirmado}
-                style={{ padding:'7px 14px', borderRadius:'5px', border:'none', background:'var(--green)', color:'#080808', fontSize:'10px', fontFamily:'var(--mono)', fontWeight:'500', opacity: cierreData.confirmado ? 1 : 0.4 }}>
+              <button onClick={confirmarCierre}
+                disabled={!cierreData.confirmado || (cierreData.tipo_validacion === 'conectividad_externa' && !cierreData.referencia_externa.trim())}
+                style={{ padding:'7px 14px', borderRadius:'5px', border:'none', background:'var(--green)', color:'#080808', fontSize:'10px', fontFamily:'var(--mono)', fontWeight:'500',
+                  opacity: (cierreData.confirmado && !(cierreData.tipo_validacion === 'conectividad_externa' && !cierreData.referencia_externa.trim())) ? 1 : 0.4 }}>
                 CONFIRMAR CIERRE
               </button>
             </div>
