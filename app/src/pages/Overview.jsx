@@ -111,7 +111,7 @@ function Prioridad({ p }) {
 export default function Overview() {
   const navigate = useNavigate()
   const { profile } = useAuth()
-  const [stats, setStats] = useState({ total:0, validadas:0, pendientes:0, por_estado:{}, por_tipo:{} })
+  const [stats, setStats] = useState({ total:0, validadas:0, validadasQA:0, validadasConectividad:0, pendientes:0, por_estado:{}, por_tipo:{} })
   const [alertasActivas, setAlertasActivas] = useState(0)
   const [comp, setComp] = useState({ nuevasEsteMes:null, nuevasMesPasado:null, validadasEsteMes:null, validadasMesPasado:null, scoreActual:null, scoreMesPasado:null })
   const [sparkInventario, setSparkInventario] = useState([])
@@ -145,7 +145,7 @@ export default function Overview() {
     while (true) {
       const { data } = await supabase
         .from('unidades_operativas')
-        .select('estado, tipo_proyecto, sla_validacion, referencia_operativa, nombre, prioridad, latitud, longitud, metodo_constructivo, id, created_at')
+        .select('estado, tipo_proyecto, tipo_validacion, sla_validacion, referencia_operativa, nombre, prioridad, latitud, longitud, metodo_constructivo, id, created_at')
         .eq('es_historico', false)
         .range(from, from + pageSize - 1)
       if (!data || data.length === 0) break
@@ -164,7 +164,10 @@ export default function Overview() {
     })
     contarAlertasActivas().then(r => setAlertasActivas(r.total))
 
-    setStats({ total: uo.length, validadas: por_estado['Validada'] || 0, pendientes: por_estado['Pendiente'] || 0, por_estado, por_tipo })
+    const validadasTotal = uo.filter(u => u.estado === 'Validada' || u.estado === 'Cerrada')
+    const validadasQA = validadasTotal.filter(u => (u.tipo_validacion || 'checklist_qa') === 'checklist_qa').length
+    const validadasConectividad = validadasTotal.filter(u => u.tipo_validacion === 'conectividad_externa').length
+    setStats({ total: uo.length, validadas: validadasTotal.length, validadasQA, validadasConectividad, pendientes: por_estado['Pendiente'] || 0, por_estado, por_tipo })
 
     const esteMes = rangoMes(0)
     const mesPasado = rangoMes(-1)
@@ -224,10 +227,12 @@ export default function Overview() {
     { label:'INVENTARIO TOTAL', val: stats.total.toLocaleString(), icon:'inventario', delta:null, spark: sparkInventario, sparkColor:'var(--accent-b)' },
     { label:'UOs VALIDADAS', val: stats.validadas.toLocaleString(), icon:'check',
       delta: comp.validadasMesPasado!==null ? <Delta actual={comp.validadasEsteMes} anterior={comp.validadasMesPasado} sufijo=' UOs' /> : null,
-      spark: sparkValidadas, sparkColor:'var(--green)' },
+      spark: sparkValidadas, sparkColor:'var(--green)',
+      sub: `${stats.validadasQA} QA · ${stats.validadasConectividad} conectividad` },
     { label:'AVANCE GLOBAL', val: avance.toFixed(1)+'%', icon:'avance',
       delta: avanceMesPasadoCalc!==null ? <Delta actual={avance} anterior={avanceMesPasadoCalc} sufijo=' pts' /> : null,
-      spark: null },
+      spark: null,
+      sub: `${stats.validadasQA} QA · ${stats.validadasConectividad} conectividad` },
     { label:'PENDIENTES', val: stats.pendientes.toLocaleString(), icon:'clock', delta:null, spark:null },
     { label:'SCORE QA PROMEDIO', val: comp.scoreActual!==null ? comp.scoreActual.toFixed(1)+'%' : '—', icon:'star',
       delta: (comp.scoreActual!==null && comp.scoreMesPasado!==null) ? <Delta actual={comp.scoreActual} anterior={comp.scoreMesPasado} sufijo=' pts' /> : null,
@@ -312,6 +317,7 @@ export default function Overview() {
               </div>
             </div>
             <div style={{ fontFamily:'var(--disp)', fontSize:'26px', fontWeight:'800', color:'var(--text)', margin:'10px 0 6px 0' }}>{k.val}</div>
+            {k.sub && <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)', marginBottom:'4px' }}>{k.sub}</div>}
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', minHeight:22 }}>
               <div>{k.delta}</div>
               {k.spark && k.spark.length > 1 && <Sparkline data={k.spark} color={k.sparkColor} />}

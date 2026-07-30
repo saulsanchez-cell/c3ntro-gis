@@ -48,7 +48,7 @@ export default function ReporteKM() {
     while (true) {
       const { data } = await supabase
         .from('unidades_operativas')
-        .select('id, km_teoricos, tipo_proyecto, entidad_federativa, estado, digitalizador_id, created_at, digitalizador:profiles!digitalizador_id(nombre)')
+        .select('id, km_teoricos, tipo_proyecto, tipo_validacion, entidad_federativa, estado, digitalizador_id, created_at, digitalizador:profiles!digitalizador_id(nombre)')
         .eq('es_historico', false)
         .range(from, from + size - 1)
       if (!data || data.length === 0) break
@@ -88,9 +88,14 @@ export default function ReporteKM() {
 
   const kpisGenerales = useMemo(() => {
     const kmTotal = uos.reduce((s, u) => s + (u.km_teoricos || 0), 0)
-    const procesados = uos.filter(u => u.estado === 'Validada' || u.estado === 'Cerrada').length
-    const evalProm = evaluacionPromedio(uos.filter(u => u.estado === 'Validada' || u.estado === 'Cerrada'))
-    return { kmTotal, procesados, evalProm }
+    const kmConectividad = uos.filter(u => u.tipo_validacion === 'conectividad_externa').reduce((s, u) => s + (u.km_teoricos || 0), 0)
+    const kmQA = kmTotal - kmConectividad
+    const validadasTotal = uos.filter(u => u.estado === 'Validada' || u.estado === 'Cerrada')
+    const procesados = validadasTotal.length
+    const procesadosConectividad = validadasTotal.filter(u => u.tipo_validacion === 'conectividad_externa').length
+    const procesadosQA = procesados - procesadosConectividad
+    const evalProm = evaluacionPromedio(validadasTotal)
+    return { kmTotal, kmQA, kmConectividad, procesados, procesadosQA, procesadosConectividad, evalProm }
   }, [uos, scorePorUO])
 
   const crecimientoActiveLine = useMemo(() => {
@@ -427,8 +432,10 @@ export default function ReporteKM() {
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
-        <Kpi icon={ICONS.ruta} label="KM TEORICOS TOTAL" value={kpisGenerales.kmTotal.toFixed(2)+' km'} color="var(--orange)" />
-        <Kpi icon={ICONS.check} label="PROYECTOS VALIDADOS" value={kpisGenerales.procesados} color="var(--green)" />
+        <Kpi icon={ICONS.ruta} label="KM TEORICOS TOTAL" value={kpisGenerales.kmTotal.toFixed(2)+' km'} color="var(--orange)"
+          sub={`${kpisGenerales.kmQA.toFixed(2)} QA · ${kpisGenerales.kmConectividad.toFixed(2)} conectividad`} />
+        <Kpi icon={ICONS.check} label="PROYECTOS VALIDADOS" value={kpisGenerales.procesados} color="var(--green)"
+          sub={`${kpisGenerales.procesadosQA} QA · ${kpisGenerales.procesadosConectividad} conectividad`} />
         <Kpi icon={ICONS.gauge} label="EVALUACION GENERAL PROMEDIO" value={kpisGenerales.evalProm !== null ? kpisGenerales.evalProm.toFixed(1)+'%' : '---'} color="var(--blue)" sub={'Objetivo >'+UMBRAL_EVALUACION+'%'} />
       </div>
 
