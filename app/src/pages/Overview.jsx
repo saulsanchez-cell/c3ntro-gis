@@ -5,8 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import MapaAvance from '../components/MapaAvance'
 import { contarAlertasActivas } from '../lib/alertas'
 
-const ESTADOS = ['Pendiente','Asignada','En Proceso','En Validacion','Validada','Rechazada']
-const ESTADO_COLOR = { Pendiente:'var(--muted2)', Asignada:'var(--orange)', 'En Proceso':'var(--blue)', 'En Validacion':'var(--accent-a)', Validada:'var(--green)', Rechazada:'var(--red)', 'En Correccion':'var(--yellow)' }
+const ESTADOS = ['Pendiente','Asignada','En Proceso','En Validacion','Validada','Rechazada','Cerrada']
+const ESTADO_COLOR = { Pendiente:'var(--muted2)', Asignada:'var(--orange)', 'En Proceso':'var(--blue)', 'En Validacion':'var(--accent-a)', Validada:'var(--green)', Rechazada:'var(--red)', 'En Correccion':'var(--yellow)', Cerrada:'var(--accent-b)' }
 const ESTADO_LABEL = { Pendiente:'Pendiente', Asignada:'Asignada', 'En Proceso':'En proceso', 'En Validacion':'En validación', Validada:'Validada', Rechazada:'Rechazada', 'En Correccion':'En corrección' }
 
 const ICONS = {
@@ -328,7 +328,7 @@ export default function Overview() {
 
       <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.12em' }}>FLUJO DE ESTADOS</div>
       <div className="glass" style={{ borderRadius:'8px', padding:'10px 12px' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'6px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'6px' }}>
           {ESTADOS.map(e => (
             <div key={e} onClick={() => navigate('/backlog')}
               style={{ background:'rgba(24,33,46,0.4)', borderRadius:'6px', padding:'8px 6px', textAlign:'center', cursor:'pointer' }}>
