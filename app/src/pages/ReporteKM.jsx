@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts'
 import { jsPDF } from 'jspdf'
 
 const TIPOS_FIJOS = ['Tikva', 'Baseline', 'Active Line']
@@ -48,7 +48,7 @@ export default function ReporteKM() {
     while (true) {
       const { data } = await supabase
         .from('unidades_operativas')
-        .select('id, km_teoricos, tipo_proyecto, tipo_validacion, entidad_federativa, estado, digitalizador_id, created_at, digitalizador:profiles!digitalizador_id(nombre)')
+        .select('id, referencia_operativa, km_teoricos, tipo_proyecto, tipo_validacion, entidad_federativa, estado, digitalizador_id, created_at, fecha_entrega_programada, fecha_carga_final, digitalizador:profiles!digitalizador_id(nombre)')
         .eq('es_historico', false)
         .range(from, from + size - 1)
       if (!data || data.length === 0) break
@@ -162,7 +162,28 @@ export default function ReporteKM() {
       .sort((a,b) => b.pctAvance - a.pctAvance)
   }, [uos, agrupacion])
 
+  const rutaCritica = useMemo(() => {
+    const conAmbasFechas = uos.filter(u => u.fecha_entrega_programada && u.fecha_carga_final)
+    return conAmbasFechas
+      .map(u => {
+        const programada = new Date(u.fecha_entrega_programada).getTime()
+        const real = new Date(u.fecha_carga_final).getTime()
+        const desviacionDias = Math.round((real - programada) / (1000 * 60 * 60 * 24))
+        return { referencia: u.referencia_operativa, programada, real, desviacionDias, aTiempo: desviacionDias <= 0 }
+      })
+      .sort((a, b) => a.programada - b.programada)
+      .slice(-20)
+  }, [uos])
+
+  const resumenRutaCritica = useMemo(() => {
+    if (rutaCritica.length === 0) return { pctATiempo: null, desviacionProm: null, total: 0 }
+    const aTiempo = rutaCritica.filter(r => r.aTiempo).length
+    const desviacionProm = rutaCritica.reduce((s, r) => s + r.desviacionDias, 0) / rutaCritica.length
+    return { pctATiempo: (aTiempo / rutaCritica.length) * 100, desviacionProm, total: rutaCritica.length }
+  }, [rutaCritica])
+
   const donutData = [
+
     { name:'Pendientes', value: distribucionTotal.pendientes, color: COLOR_PENDIENTE },
     { name:'Validados',  value: distribucionTotal.validados,  color: COLOR_VALIDADO  },
     { name:'Rechazados', value: distribucionTotal.rechazados, color: COLOR_RECHAZADO },
