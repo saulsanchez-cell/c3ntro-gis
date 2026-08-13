@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { generarCertificado, generarCertificadoConectividad } from '../lib/certificado'
+import { generarCertificado, generarCertificadoConectividad, generarPDFAsignacion, generarBitacoraUO } from '../lib/certificado'
 
 const FASES = ['Preparacion','Carga parcial','Carga completa']
 const PRIORIDADES = ['P1','P2','P3']
@@ -43,7 +43,7 @@ export default function FichaUO() {
   const [asignacion, setAsignacion] = useState({
     digitalizador_id: '', analista_qa_id: '', prioridad: 'P3',
     link_archivos: '', observaciones: '', metodo_constructivo: '',
-    latitud: '', longitud: ''
+    latitud: '', longitud: '', fecha_entrega_programada: ''
   })
 
   useEffect(() => { fetchAll() }, [id])
@@ -118,6 +118,7 @@ export default function FichaUO() {
         metodo_constructivo: uoData.metodo_constructivo || '',
         latitud: uoData.latitud || '',
         longitud: uoData.longitud || '',
+        fecha_entrega_programada: uoData.fecha_entrega_programada || '',
       })
     }
     setLoading(false)
@@ -135,6 +136,7 @@ export default function FichaUO() {
       metodo_constructivo: asignacion.metodo_constructivo,
       latitud: asignacion.latitud ? parseFloat(asignacion.latitud) : null,
       longitud: asignacion.longitud ? parseFloat(asignacion.longitud) : null,
+      fecha_entrega_programada: asignacion.fecha_entrega_programada || null,
     }
     if (asignacion.digitalizador_id && !uo.fecha_asignacion) {
       updates.fecha_asignacion = new Date().toISOString().split('T')[0]
@@ -152,6 +154,7 @@ export default function FichaUO() {
   async function guardarLog() {
     setLogError('')
     const ultimoPct = logs[0]?.porcentaje_avance ?? 0
+    const esPrimerLog = logs.length === 0
     const noAvanza = logForm.porcentaje_avance <= ultimoPct && logs.length > 0
     if (noAvanza && !logForm.nota.trim()) { setLogError('Explica por que el avance no progreso.'); return }
     if (logForm.fase === 'Carga completa' && (!logForm.comentario_entrega.trim() || logForm.comentario_entrega.trim().length < 20)) {
@@ -165,14 +168,18 @@ export default function FichaUO() {
     }, { onConflict: 'uo_id,fecha,usuario_id' })
     if (!error) {
       const updates = {}
+      if (esPrimerLog && !uo.fecha_inicio_real) {
+        updates.fecha_inicio_real = hoy
+      }
+      const fechaBase = uo.fecha_inicio_real || (esPrimerLog ? hoy : null)
       if (logForm.fase === 'Carga completa' && logForm.porcentaje_avance === 100) {
         updates.fecha_carga_final = hoy
-        if (uo.fecha_asignacion) {
-          const diff = Math.floor((new Date(hoy) - new Date(uo.fecha_asignacion)) / (1000 * 60 * 60 * 24))
+        if (fechaBase) {
+          const diff = Math.floor((new Date(hoy) - new Date(fechaBase)) / (1000 * 60 * 60 * 24))
           updates.dias_proceso = diff === 0 ? 0 : diff
         }
-      } else if (!uo.dias_proceso && uo.fecha_asignacion) {
-        const diff = Math.floor((new Date(hoy) - new Date(uo.fecha_asignacion)) / (1000 * 60 * 60 * 24))
+      } else if (!uo.dias_proceso && fechaBase) {
+        const diff = Math.floor((new Date(hoy) - new Date(fechaBase)) / (1000 * 60 * 60 * 24))
         updates.dias_proceso = diff === 0 ? 0 : diff
       }
       if (Object.keys(updates).length > 0) await supabase.from('unidades_operativas').update(updates).eq('id', id)
@@ -330,6 +337,18 @@ export default function FichaUO() {
               <button onClick={() => generarCertificadoConectividad({ uo, resultado: ultimoChecklist.resultado })}
                 style={{ padding:'6px 12px', borderRadius:'5px', border:'0.5px solid rgba(59,130,246,0.3)', background:'rgba(59,130,246,0.08)', color:'var(--blue)', fontSize:'9px', fontFamily:'var(--mono)', fontWeight:500, cursor:'pointer' }}>
                 AVISO CONECTIVIDAD
+              </button>
+            )}
+            {uo.fecha_asignacion && (
+              <button onClick={() => generarPDFAsignacion({ uo })}
+                style={{ padding:'6px 12px', borderRadius:'5px', border:'0.5px solid rgba(249,115,22,0.3)', background:'rgba(249,115,22,0.08)', color:'var(--orange)', fontSize:'9px', fontFamily:'var(--mono)', fontWeight:500, cursor:'pointer' }}>
+                PDF ASIGNACION
+              </button>
+            )}
+            {historial.length > 0 && (
+              <button onClick={() => generarBitacoraUO({ uo, historial })}
+                style={{ padding:'6px 12px', borderRadius:'5px', border:'0.5px solid var(--border2)', background:'none', color:'var(--muted2)', fontSize:'9px', fontFamily:'var(--mono)', fontWeight:500, cursor:'pointer' }}>
+                BITACORA
               </button>
             )}
             {transiciones.length > 0 ? (
@@ -569,6 +588,10 @@ export default function FichaUO() {
                   <select value={asignacion.prioridad} onChange={e => setAsignacion(a => ({ ...a, prioridad: e.target.value }))}>
                     {PRIORIDADES.map(p => <option key={p}>{p}</option>)}
                   </select>
+                </div>
+                <div>
+                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>FECHA DE ENTREGA PROGRAMADA</div>
+                  <input type="date" value={asignacion.fecha_entrega_programada || ''} onChange={e => setAsignacion(a => ({ ...a, fecha_entrega_programada: e.target.value }))} />
                 </div>
                 <div>
                   <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>LINK DE ARCHIVOS</div>
