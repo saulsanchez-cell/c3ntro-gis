@@ -331,3 +331,264 @@ export function generarCertificadoConectividad({ uo, resultado }) {
 
   doc.save(`Aviso_Conectividad_${uo.referencia_operativa}.pdf`)
 }
+export function generarPDFAsignacion({ uo }) {
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const margin = 50
+  const contentWidth = pageWidth - margin * 2
+  let y = 50
+
+  function setColor(rgb) { doc.setTextColor(rgb[0], rgb[1], rgb[2]) }
+  function setFill(rgb) { doc.setFillColor(rgb[0], rgb[1], rgb[2]) }
+  function setDraw(rgb) { doc.setDrawColor(rgb[0], rgb[1], rgb[2]) }
+
+  // Header
+  setFill(COLORS.dark)
+  doc.circle(margin + 10, y, 10, 'F')
+  setColor(COLORS.dark)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.text('C3NTRO TELECOM', margin + 28, y - 2)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setColor(COLORS.gray)
+  doc.text('GIS Operations', margin + 28, y + 9)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  setColor(COLORS.dark)
+  doc.text('Orden de asignacion', pageWidth - margin, y - 2, { align: 'right' })
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setColor(COLORS.gray)
+  doc.text(`REF · ${uo.referencia_operativa}`, pageWidth - margin, y + 9, { align: 'right' })
+
+  y += 30
+  setDraw(COLORS.border)
+  doc.setLineWidth(0.5)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 24
+
+  // Datos UO
+  setFill(COLORS.lightGray)
+  doc.roundedRect(margin, y, contentWidth, 56, 4, 4, 'F')
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
+  setColor(COLORS.gray)
+  doc.text('UNIDAD OPERATIVA', margin + 14, y + 14)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  setColor(COLORS.dark)
+  doc.text(uo.nombre, margin + 14, y + 30)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  setColor(COLORS.gray)
+  doc.text(`${uo.tipo_proyecto || '---'} · ${uo.metodo_constructivo || 'Metodo sin definir'}`, margin + 14, y + 46)
+
+  const col2x = margin + contentWidth * 0.62
+  doc.setFontSize(7)
+  setColor(COLORS.gray)
+  doc.text('PRIORIDAD', col2x, y + 14)
+  const prioColor = uo.prioridad === 'P1' ? COLORS.red : uo.prioridad === 'P2' ? COLORS.yellow : COLORS.gray
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  setColor(prioColor)
+  doc.text(uo.prioridad || '---', col2x, y + 30)
+
+  y += 76
+
+  // Fechas clave
+  const fechas = [
+    ['Fecha de asignacion', uo.fecha_asignacion || '---'],
+    ['Fecha de entrega programada', uo.fecha_entrega_programada || 'Sin definir'],
+  ]
+  const fw = contentWidth / 2 - 6
+  fechas.forEach((f, i) => {
+    const fx = margin + i * (fw + 12)
+    setFill(COLORS.lightGray)
+    doc.roundedRect(fx, y, fw, 46, 4, 4, 'F')
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    setColor(COLORS.gray)
+    doc.text(f[0].toUpperCase(), fx + 12, y + 16)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(13)
+    setColor(f[1] === '---' || f[1] === 'Sin definir' ? COLORS.gray : COLORS.dark)
+    doc.text(String(f[1]), fx + 12, y + 34)
+  })
+
+  y += 66
+
+  // Responsable
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  setColor(COLORS.dark)
+  doc.text('RESPONSABLE ASIGNADO', margin, y)
+  y += 14
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  setColor(COLORS.dark)
+  doc.text(uo.digitalizador?.nombre || 'Sin asignar', margin, y)
+
+  y += 30
+  setDraw(COLORS.border)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 20
+
+  // Link de archivos
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  setColor(COLORS.dark)
+  doc.text('INSUMOS Y HERRAMIENTAS', margin, y)
+  y += 16
+  if (uo.link_archivos) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    setColor(COLORS.blue)
+    doc.textWithLink(uo.link_archivos, margin, y, { url: uo.link_archivos })
+  } else {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    setColor(COLORS.gray)
+    doc.text('Sin link de archivos registrado', margin, y)
+  }
+  y += 26
+
+  // Comentario de asignacion
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  setColor(COLORS.dark)
+  doc.text('COMENTARIO DE ASIGNACION', margin, y)
+  y += 16
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  setColor(COLORS.dark)
+  const obsLines = doc.splitTextToSize(uo.observaciones || 'Sin comentarios adicionales.', contentWidth)
+  doc.text(obsLines, margin, y)
+  y += obsLines.length * 12 + 20
+
+  setDraw(COLORS.border)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 14
+
+  doc.setFontSize(6.5)
+  setColor(COLORS.gray)
+  const fechaGen = new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
+  doc.text(`Generado el ${fechaGen}`, margin, y)
+
+  doc.save(`Asignacion_${uo.referencia_operativa}.pdf`)
+}
+
+export function generarBitacoraUO({ uo, historial }) {
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const margin = 50
+  const contentWidth = pageWidth - margin * 2
+  let y = 50
+
+  function setColor(rgb) { doc.setTextColor(rgb[0], rgb[1], rgb[2]) }
+  function setFill(rgb) { doc.setFillColor(rgb[0], rgb[1], rgb[2]) }
+  function setDraw(rgb) { doc.setDrawColor(rgb[0], rgb[1], rgb[2]) }
+
+  setFill(COLORS.dark)
+  doc.circle(margin + 10, y, 10, 'F')
+  setColor(COLORS.dark)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.text('C3NTRO TELECOM', margin + 28, y - 2)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setColor(COLORS.gray)
+  doc.text('GIS Operations', margin + 28, y + 9)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  setColor(COLORS.dark)
+  doc.text('Bitacora de estados', pageWidth - margin, y - 2, { align: 'right' })
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setColor(COLORS.gray)
+  doc.text(`REF · ${uo.referencia_operativa}`, pageWidth - margin, y + 9, { align: 'right' })
+
+  y += 30
+  setDraw(COLORS.border)
+  doc.setLineWidth(0.5)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 20
+
+  setFill(COLORS.lightGray)
+  doc.roundedRect(margin, y, contentWidth, 32, 4, 4, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  setColor(COLORS.dark)
+  doc.text(uo.nombre, margin + 14, y + 20)
+  y += 48
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  setColor(COLORS.dark)
+  doc.text('HISTORIAL COMPLETO', margin, y)
+  y += 16
+
+  const ordenado = [...(historial || [])].sort((a,b) => new Date(a.created_at) - new Date(b.created_at))
+
+  if (ordenado.length === 0) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    setColor(COLORS.gray)
+    doc.text('Sin cambios de estado registrados.', margin, y)
+  }
+
+  ordenado.forEach((h) => {
+    if (y > 700) { doc.addPage(); y = 50 }
+    const ETIQUETA_EVENTO = { 'Carga completa': 'Entrega reportada' }
+    const etiquetaEvento = ETIQUETA_EVENTO[h.estado_nuevo] || h.estado_nuevo
+
+    setFill(COLORS.lightGray)
+    doc.roundedRect(margin, y, contentWidth, 6, 3, 3, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    setColor(COLORS.dark)
+    doc.text(etiquetaEvento, margin, y + 16)
+
+    const fechaH = new Date(h.created_at).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
+    const horaH = new Date(h.created_at).toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' })
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    setColor(COLORS.gray)
+    doc.text(`${fechaH} · ${horaH} · ${h.usuario?.nombre || 'Usuario'}`, pageWidth - margin, y + 16, { align: 'right' })
+
+    y += 22
+
+    if (h.motivo_texto) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      setColor(COLORS.dark)
+      const motivoLines = doc.splitTextToSize(`"${h.motivo_texto}"`, contentWidth - 10)
+      doc.text(motivoLines, margin + 10, y)
+      y += motivoLines.length * 10 + 6
+    }
+    if (h.categoria_error) {
+      setFill(COLORS.orange)
+      const catW = doc.getTextWidth(h.categoria_error) + 12
+      doc.roundedRect(margin + 10, y - 2, catW, 12, 3, 3, 'F')
+      doc.setTextColor(255,255,255)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(6.5)
+      doc.text(h.categoria_error, margin + 16, y + 6)
+      y += 18
+    }
+
+    setDraw(COLORS.border)
+    doc.line(margin, y, pageWidth - margin, y)
+    y += 14
+  })
+
+  if (y > 730) { doc.addPage(); y = 50 }
+  doc.setFontSize(6.5)
+  setColor(COLORS.gray)
+  const fechaGen = new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
+  doc.text(`Generado el ${fechaGen} · ${ordenado.length} evento(s) registrado(s)`, margin, y)
+
+  doc.save(`Bitacora_${uo.referencia_operativa}.pdf`)
+}
