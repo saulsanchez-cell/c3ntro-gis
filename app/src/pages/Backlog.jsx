@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 
-const ESTADOS = ['Pendiente','Asignada','En Proceso','En Validacion','Validada','Rechazada','Bloqueada','En Correccion']
-const ESTADO_COLOR = { Pendiente:'var(--muted2)', Asignada:'var(--orange)', 'En Proceso':'var(--blue)', 'En Validacion':'var(--accent-a)', Validada:'var(--green)', Rechazada:'var(--red)', Bloqueada:'var(--red)', 'En Correccion':'var(--yellow)' }
-const ESTADO_LABEL = { Pendiente:'Pendiente', Asignada:'Asignada', 'En Proceso':'En proceso', 'En Validacion':'En validación', Validada:'Validada', Rechazada:'Rechazada', Bloqueada:'Bloqueada', 'En Correccion':'En corrección' }
+const ESTADOS = ['Pendiente','Asignada','En Proceso','En Validacion','Validada','Rechazada','Bloqueada','En Correccion','Cerrada']
+const ESTADO_COLOR = { Pendiente:'var(--muted2)', Asignada:'var(--orange)', 'En Proceso':'var(--blue)', 'En Validacion':'var(--accent-a)', Validada:'var(--green)', Rechazada:'var(--red)', Bloqueada:'var(--red)', 'En Correccion':'var(--yellow)', Cerrada:'var(--accent-b)' }
+const ESTADO_LABEL = { Pendiente:'Pendiente', Asignada:'Asignada', 'En Proceso':'En proceso', 'En Validacion':'En validación', Validada:'Validada', Rechazada:'Rechazada', Bloqueada:'Bloqueada', 'En Correccion':'En corrección', Cerrada:'Cerrada' }
 
 const AVATAR_COLORS = ['#8B5CF6', '#38BDF8', '#F5A623', '#34D399', '#F2545B', '#EC4899', '#22D3EE', '#A78BFA']
 function colorAvatar(seed) {
@@ -34,10 +34,12 @@ function EstadoBadge({ estado, size = 'sm' }) {
   )
 }
 
+const FILTRO_VACIO = { tipo:'', prioridad:'', estado:'', digitalizador_id:'', analista_qa_id:'', busqueda:'' }
+
 export default function Backlog() {
   const navigate = useNavigate()
   const [uos, setUos] = useState([])
-  const [filtro, setFiltro] = useState({ tipo:'', prioridad:'', busqueda:'' })
+  const [filtro, setFiltro] = useState(FILTRO_VACIO)
   const [vista, setVista] = useState('kanban')
   const [loading, setLoading] = useState(true)
 
@@ -65,15 +67,36 @@ export default function Backlog() {
     setLoading(false)
   }
 
+  const digitalizadores = useMemo(() => {
+    const map = {}
+    uos.forEach(u => { if (u.digitalizador_id && u.digitalizador) map[u.digitalizador_id] = u.digitalizador.nombre })
+    return Object.entries(map).sort((a, b) => a[1].localeCompare(b[1]))
+  }, [uos])
+
+  const analistas = useMemo(() => {
+    const map = {}
+    uos.forEach(u => { if (u.analista_qa_id && u.analista_qa) map[u.analista_qa_id] = u.analista_qa.nombre })
+    return Object.entries(map).sort((a, b) => a[1].localeCompare(b[1]))
+  }, [uos])
+
   const uosFiltradas = uos.filter(u => {
     if (filtro.tipo && u.tipo_proyecto !== filtro.tipo) return false
     if (filtro.prioridad && u.prioridad !== filtro.prioridad) return false
+    if (filtro.estado && u.estado !== filtro.estado) return false
+    if (filtro.digitalizador_id && u.digitalizador_id !== filtro.digitalizador_id) return false
+    if (filtro.analista_qa_id && u.analista_qa_id !== filtro.analista_qa_id) return false
     if (filtro.busqueda) {
       const q = filtro.busqueda.toLowerCase()
-      return u.referencia_operativa?.toLowerCase().includes(q) || u.nombre?.toLowerCase().includes(q)
+      if (!(u.referencia_operativa?.toLowerCase().includes(q) || u.nombre?.toLowerCase().includes(q))) return false
     }
     return true
   })
+
+  const hayFiltrosActivos = !!(filtro.tipo || filtro.prioridad || filtro.estado || filtro.digitalizador_id || filtro.analista_qa_id)
+
+  function limpiarFiltros() {
+    setFiltro(f => ({ ...FILTRO_VACIO, busqueda: f.busqueda }))
+  }
 
   if (loading) return <div style={{ padding:'40px', fontFamily:'var(--mono)', fontSize:'11px', color:'var(--muted2)' }}>Cargando backlog...</div>
 
@@ -88,16 +111,6 @@ export default function Backlog() {
           <input placeholder="Buscar referencia o nombre..." value={filtro.busqueda}
             onChange={e => setFiltro(f => ({ ...f, busqueda: e.target.value }))}
             style={{ width:'220px', padding:'5px 10px', fontSize:'10px' }} />
-          <select value={filtro.tipo} onChange={e => setFiltro(f => ({ ...f, tipo: e.target.value }))}
-            style={{ width:'130px', padding:'5px 8px', fontSize:'10px' }}>
-            <option value="">Todos los tipos</option>
-            {['Baseline','Active Line','Tikva','Enterprise','IRU','Backbone','AsBuilt','Reingenieria'].map(t => <option key={t}>{t}</option>)}
-          </select>
-          <select value={filtro.prioridad} onChange={e => setFiltro(f => ({ ...f, prioridad: e.target.value }))}
-            style={{ width:'110px', padding:'5px 8px', fontSize:'10px' }}>
-            <option value="">Prioridad</option>
-            {['P1','P2','P3'].map(p => <option key={p}>{p}</option>)}
-          </select>
           <div style={{ display:'flex', background:'var(--surface2)', borderRadius:'5px', padding:'2px', gap:'1px' }}>
             {['kanban','lista','cerradas'].map(v => (
               <button key={v} onClick={() => setVista(v)}
@@ -110,9 +123,55 @@ export default function Backlog() {
           </div>
         </div>
       </div>
+
+      <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 20px', background:'var(--surface)', borderBottom:'0.5px solid var(--border2)', flexShrink:0, flexWrap:'wrap' }}>
+        <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.1em' }}>FILTROS</span>
+
+        <select value={filtro.estado} onChange={e => setFiltro(f => ({ ...f, estado: e.target.value }))}
+          style={{ width:'130px', padding:'5px 8px', fontSize:'10px' }}>
+          <option value="">Todos los estados</option>
+          {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
+        </select>
+
+        <select value={filtro.tipo} onChange={e => setFiltro(f => ({ ...f, tipo: e.target.value }))}
+          style={{ width:'130px', padding:'5px 8px', fontSize:'10px' }}>
+          <option value="">Todos los tipos</option>
+          {['Baseline','Active Line','Tikva','Enterprise','IRU','Backbone','AsBuilt','Reingenieria'].map(t => <option key={t}>{t}</option>)}
+        </select>
+
+        <select value={filtro.prioridad} onChange={e => setFiltro(f => ({ ...f, prioridad: e.target.value }))}
+          style={{ width:'110px', padding:'5px 8px', fontSize:'10px' }}>
+          <option value="">Prioridad</option>
+          {['P1','P2','P3'].map(p => <option key={p}>{p}</option>)}
+        </select>
+
+        <select value={filtro.digitalizador_id} onChange={e => setFiltro(f => ({ ...f, digitalizador_id: e.target.value }))}
+          style={{ width:'150px', padding:'5px 8px', fontSize:'10px' }}>
+          <option value="">Todos los digitalizadores</option>
+          {digitalizadores.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
+        </select>
+
+        <select value={filtro.analista_qa_id} onChange={e => setFiltro(f => ({ ...f, analista_qa_id: e.target.value }))}
+          style={{ width:'150px', padding:'5px 8px', fontSize:'10px' }}>
+          <option value="">Todos los analistas QA</option>
+          {analistas.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
+        </select>
+
+        {hayFiltrosActivos && (
+          <button onClick={limpiarFiltros}
+            style={{ padding:'5px 10px', borderRadius:'4px', border:'0.5px solid rgba(239,68,68,0.3)', background:'rgba(239,68,68,0.08)', color:'var(--red)', fontSize:'9px', fontFamily:'var(--mono)' }}>
+            LIMPIAR FILTROS
+          </button>
+        )}
+
+        <span style={{ marginLeft:'auto', fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>
+          Mostrando {uosFiltradas.length.toLocaleString()} de {uos.length.toLocaleString()} UOs
+        </span>
+      </div>
+
       <div style={{ flex:1, overflow:'auto', padding:'14px 20px' }}>
         {vista === 'kanban' ? <KanbanView uos={uosFiltradas} navigate={navigate} /> :
- vista === 'cerradas' ? <ListView uos={uos.filter(u => u.estado === 'Cerrada' || u.estado === 'En Correccion')} navigate={navigate} /> :
+ vista === 'cerradas' ? <ListView uos={uosFiltradas.filter(u => u.estado === 'Cerrada' || u.estado === 'En Correccion')} navigate={navigate} /> :
  <ListView uos={uosFiltradas} navigate={navigate} />}
       </div>
     </div>
