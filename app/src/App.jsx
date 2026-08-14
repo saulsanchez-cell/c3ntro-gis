@@ -8,7 +8,6 @@ import Backlog from "./pages/Backlog"
 import FichaUO from "./pages/FichaUO"
 import Equipo from "./pages/Equipo"
 import NuevaUO from './pages/NuevaUO'
-import Reportes from './pages/Reportes'
 import Checklist from './pages/Checklist'
 import Alertas from './pages/Alertas'
 import Calidad from './pages/Calidad'
@@ -31,10 +30,10 @@ function ProtectedLayout() {
           <Route path="/backlog/:id" element={<FichaUO />} />
           <Route path="/backlog/:id/checklist" element={<Checklist />} />
           <Route path="/equipo" element={<Equipo />} />
-          <Route path="/reportes" element={<Reportes />} />
           <Route path="/alertas" element={<Alertas />} />
           <Route path="/calidad" element={<Calidad />} />
-          <Route path="/reporte-km" element={<ReporteKM />} />
+          <Route path="/reportes" element={<ReporteKM />} />
+          <Route path="/reporte-km" element={<Navigate to="/reportes" replace />} />
         </Routes>
       </main>
     </div>

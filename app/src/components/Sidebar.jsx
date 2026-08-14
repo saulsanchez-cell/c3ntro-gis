@@ -65,7 +65,7 @@ export default function Sidebar({ open, onClose }) {
       label: 'Calidad y avance',
       items: [
         { label: 'Calidad', path: '/calidad', icon: 'calidad' },
-        { label: 'Reporte KM', path: '/reporte-km', icon: 'reporteKm', soloCoordinador: true },
+        { label: 'Reportes', path: '/reportes', icon: 'reporteKm', soloCoordinador: true },
         { label: 'Alertas', path: '/alertas', icon: 'alertas' },
       ],
     },
@@ -73,7 +73,6 @@ export default function Sidebar({ open, onClose }) {
       label: 'Gestión',
       items: [
         { label: 'Equipo', path: '/equipo', icon: 'equipo', soloCoordinador: true },
-        { label: 'Reportes', path: '/reportes', icon: 'reportes', soloCoordinador: true },
       ],
     },
   ]
