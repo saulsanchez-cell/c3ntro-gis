@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts'
 import { jsPDF } from 'jspdf'
@@ -33,13 +35,33 @@ function Kpi({ icon, label, value, color = 'var(--text)', sub }) {
 }
 
 export default function ReporteKM() {
+  const { profile } = useAuth()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [uos, setUos] = useState([])
   const [checklists, setChecklists] = useState([])
   const [metas, setMetas] = useState({})
   const [agrupacion, setAgrupacion] = useState('entidad')
 
+  useEffect(() => {
+    if (profile && profile.rol !== 'coordinador') navigate('/')
+  }, [profile])
+
   useEffect(() => { fetchData() }, [])
+
+  function exportCSV(datos, nombre) {
+    if (!datos.length) return
+    const headers = Object.keys(datos[0]).join(',')
+    const rows = datos.map(r => Object.values(r).map(v => `"${v ?? ''}"`).join(','))
+    const csv = [headers, ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${nombre}_${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   async function fetchData() {
     let all = []
@@ -48,7 +70,7 @@ export default function ReporteKM() {
     while (true) {
       const { data } = await supabase
         .from('unidades_operativas')
-        .select('id, referencia_operativa, km_teoricos, tipo_proyecto, tipo_validacion, entidad_federativa, estado, digitalizador_id, created_at, fecha_entrega_programada, fecha_carga_final, digitalizador:profiles!digitalizador_id(nombre)')
+        .select('id, referencia_operativa, km_teoricos, tipo_proyecto, tipo_validacion, entidad_federativa, estado, digitalizador_id, analista_qa_id, created_at, fecha_entrega_programada, fecha_carga_final, digitalizador:profiles!digitalizador_id(nombre), analista_qa:profiles!analista_qa_id(nombre)')
         .eq('es_historico', false)
         .range(from, from + size - 1)
       if (!data || data.length === 0) break
@@ -97,6 +119,17 @@ export default function ReporteKM() {
     const evalProm = evaluacionPromedio(validadasTotal)
     return { kmTotal, kmQA, kmConectividad, procesados, procesadosQA, procesadosConectividad, evalProm }
   }, [uos, scorePorUO])
+const porAnalista = useMemo(() => {
+    const map = {}
+    uos.forEach(u => {
+      const nombre = u.analista_qa?.nombre ?? 'Sin asignar'
+      if (!map[nombre]) map[nombre] = { validadas: 0, rechazadas: 0, en_proceso: 0 }
+      if (u.estado === 'Validada' || u.estado === 'Cerrada') map[nombre].validadas++
+      else if (u.estado === 'Rechazada') map[nombre].rechazadas++
+      else if (['Asignada', 'En Proceso', 'En Validacion'].includes(u.estado)) map[nombre].en_proceso++
+    })
+    return Object.entries(map).sort((a, b) => b[1].validadas - a[1].validadas)
+  }, [uos])
 
   const crecimientoActiveLine = useMemo(() => {
     const lista = uos.filter(u => u.tipo_proyecto === 'Active Line' && u.created_at)
@@ -570,6 +603,34 @@ export default function ReporteKM() {
             )}
           </div>
         ))}
+      </div>
+<div className="glass" style={{ borderRadius:'10px', padding:'14px 16px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
+          <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.12em' }}>RENDIMIENTO POR ANALISTA QA</div>
+          <button onClick={() => exportCSV(porAnalista.map(([nombre, d]) => ({ analista: nombre, ...d })), 'rendimiento_analistas')}
+            style={{ fontFamily:'var(--mono)', fontSize:'9px', padding:'4px 10px', borderRadius:'4px', border:'0.5px solid var(--border2)', background:'none', color:'var(--muted2)', cursor:'pointer' }}>
+            EXPORTAR CSV
+          </button>
+        </div>
+        <table style={{ width:'100%', borderCollapse:'collapse' }}>
+          <thead>
+            <tr>
+              {['ANALISTA','VALIDADAS','RECHAZADAS','EN PROCESO'].map(h => (
+                <th key={h} style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', padding:'6px 10px', borderBottom:'0.5px solid var(--border2)', textAlign:'left' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {porAnalista.map(([nombre, d]) => (
+              <tr key={nombre}>
+                <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)', fontSize:'11px' }}>{nombre}</td>
+                <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)', fontFamily:'var(--mono)', fontSize:'11px', color:'var(--green)' }}>{d.validadas}</td>
+                <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)', fontFamily:'var(--mono)', fontSize:'11px', color:'var(--red)' }}>{d.rechazadas}</td>
+                <td style={{ padding:'8px 10px', borderBottom:'0.5px solid var(--border2)', fontFamily:'var(--mono)', fontSize:'11px', color:'var(--yellow)' }}>{d.en_proceso}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
