@@ -635,8 +635,6 @@ const porAnalista = useMemo(() => {
 
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)', letterSpacing:'0.12em' }}>RANKING DE AVANCE POR KILOMETRAJE</span>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)', letterSpacing:'0.12em' }}>RANKING DE AVANCE POR KILOMETRAJE</span>
         <div style={{ display:'flex', background:'var(--surface2)', borderRadius:'6px', padding:'2px', gap:'1px' }}>
           {[{k:'entidad',l:'ENTIDAD'},{k:'tipo',l:'TIPO PROYECTO'},{k:'digitalizador',l:'DIGITALIZADOR'}].map(o => (
             <button key={o.k} onClick={() => setAgrupacion(o.k)}
