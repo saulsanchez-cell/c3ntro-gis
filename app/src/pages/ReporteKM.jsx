@@ -336,10 +336,12 @@ const porAnalista = useMemo(() => {
       st(C.muted); pdf.setFontSize(6); pdf.setFont('helvetica','normal')
       pdf.text('EVALUACION', x+8, y+70)
       const ec = t.evaluacion !== null && t.evaluacion >= UMBRAL_EVALUACION ? C.green : C.yellow
+      const evalTexto = t.evaluacion !== null ? t.evaluacion.toFixed(1)+'%' : '---'
       st(ec); pdf.setFontSize(9); pdf.setFont('helvetica','bold')
-      pdf.text(t.evaluacion !== null ? t.evaluacion.toFixed(1)+'%' : '---', x+8, y+80)
+      pdf.text(evalTexto, x+8, y+80)
+      const evalAncho = pdf.getTextWidth(evalTexto)
       st(C.muted); pdf.setFontSize(6); pdf.setFont('helvetica','normal')
-      pdf.text(`(obj. >${UMBRAL_EVALUACION}%)`, x+8+28, y+80)
+      pdf.text(`(obj. >${UMBRAL_EVALUACION}%)`, x+8+evalAncho+6, y+80)
     }
 
     function dona() {
@@ -458,6 +460,61 @@ const porAnalista = useMemo(() => {
     ranking(calcGrupo(u=>u.entidad_federativa||'Sin entidad',    ['Sin entidad']),    'Ranking por Entidad Federativa')
     ranking(calcGrupo(u=>u.tipo_proyecto||'Sin clasificar',       ['Sin clasificar']), 'Ranking por Tipo de Proyecto')
     ranking(calcGrupo(u=>u.digitalizador?.nombre||'Sin asignar',  ['Sin asignar']),    'Ranking por Digitalizador')
+
+    // Ruta critica
+    checkPage(150)
+    divider(`Ruta critica - programada vs. real (ultimas ${rutaCritica.length} UOs)`)
+
+    if (rutaCritica.length === 0) {
+      st(C.muted); pdf.setFontSize(8); pdf.setFont('helvetica','normal')
+      pdf.text('Aun no hay UOs con fecha programada y fecha real de entrega registradas.', M, y + 10)
+      y += 30
+    } else {
+      st(C.muted); pdf.setFontSize(7); pdf.setFont('helvetica','normal')
+      const pctAT = resumenRutaCritica.pctATiempo
+      const desvP = resumenRutaCritica.desviacionProm
+      pdf.text(`A tiempo: ${pctAT.toFixed(0)}%   ·   Desviacion promedio: ${desvP > 0 ? '+' : ''}${desvP.toFixed(1)} dias`, M, y)
+      y += 16
+
+      const chartH = 110, chartW = COL, chartX = M, chartY = y
+      const fechasChart = rutaCritica.flatMap(rr => [rr.programada, rr.real])
+      const minF = Math.min(...fechasChart)
+      const maxF = Math.max(...fechasChart)
+      const rangoF = (maxF - minF) || 1
+      const n = rutaCritica.length
+      const stepX = n > 1 ? chartW / (n - 1) : 0
+      const xFor = i => chartX + i * stepX
+      const yFor = fecha => chartY + chartH - ((fecha - minF) / rangoF) * chartH
+
+      sd(C.border); pdf.setLineWidth(0.5)
+      pdf.line(chartX, chartY, chartX, chartY + chartH)
+      pdf.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH)
+
+      sd(C.yellow); pdf.setLineWidth(1.2)
+      for (let i = 0; i < n - 1; i++) pdf.line(xFor(i), yFor(rutaCritica[i].programada), xFor(i + 1), yFor(rutaCritica[i + 1].programada))
+
+      sd(C.green)
+      for (let i = 0; i < n - 1; i++) pdf.line(xFor(i), yFor(rutaCritica[i].real), xFor(i + 1), yFor(rutaCritica[i + 1].real))
+
+      rutaCritica.forEach((rr, i) => {
+        sf(rr.aTiempo ? C.green : C.red)
+        pdf.circle(xFor(i), yFor(rr.real), 1.8, 'F')
+      })
+
+      st(C.muted); pdf.setFontSize(6); pdf.setFont('helvetica','normal')
+      pdf.text(rutaCritica[0].referencia, chartX, chartY + chartH + 10)
+      pdf.text(rutaCritica[n - 1].referencia, chartX + chartW, chartY + chartH + 10, { align: 'right' })
+
+      y = chartY + chartH + 24
+      sf(C.yellow); r(M, y, 7, 7)
+      st(C.white); pdf.setFontSize(7); pdf.setFont('helvetica','normal')
+      pdf.text('Programada', M + 10, y + 6)
+      sf(C.green); r(M + 90, y, 7, 7)
+      pdf.text('Real - a tiempo', M + 100, y + 6)
+      sf(C.red); r(M + 200, y, 7, 7)
+      pdf.text('Real - retrasada', M + 210, y + 6)
+      y += 20
+    }
 
     pdf.save(`Reporte_KM_Completo_${new Date().toISOString().split('T')[0]}.pdf`)
   }
