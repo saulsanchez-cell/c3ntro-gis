@@ -462,7 +462,7 @@ const porAnalista = useMemo(() => {
     ranking(calcGrupo(u=>u.digitalizador?.nombre||'Sin asignar',  ['Sin asignar']),    'Ranking por Digitalizador')
 
     // Ruta critica
-    checkPage(150)
+    checkPage(190)
     divider(`Ruta critica - programada vs. real (ultimas ${rutaCritica.length} UOs)`)
 
     if (rutaCritica.length === 0) {
@@ -501,11 +501,12 @@ const porAnalista = useMemo(() => {
         pdf.circle(xFor(i), yFor(rr.real), 1.8, 'F')
       })
 
-      st(C.muted); pdf.setFontSize(6); pdf.setFont('helvetica','normal')
-      pdf.text(rutaCritica[0].referencia, chartX, chartY + chartH + 10)
-      pdf.text(rutaCritica[n - 1].referencia, chartX + chartW, chartY + chartH + 10, { align: 'right' })
+      st(C.muted); pdf.setFontSize(5.5); pdf.setFont('helvetica','normal')
+      rutaCritica.forEach((rr, i) => {
+        pdf.text(String(rr.referencia ?? '---'), xFor(i), chartY + chartH + 4, { angle: -90 })
+      })
 
-      y = chartY + chartH + 24
+      y = chartY + chartH + 46
       sf(C.yellow); r(M, y, 7, 7)
       st(C.white); pdf.setFontSize(7); pdf.setFont('helvetica','normal')
       pdf.text('Programada', M + 10, y + 6)
