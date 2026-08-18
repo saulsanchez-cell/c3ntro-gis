@@ -459,7 +459,6 @@ const porAnalista = useMemo(() => {
     // Rankings
     ranking(calcGrupo(u=>u.entidad_federativa||'Sin entidad',    ['Sin entidad']),    'Ranking por Entidad Federativa')
     ranking(calcGrupo(u=>u.tipo_proyecto||'Sin clasificar',       ['Sin clasificar']), 'Ranking por Tipo de Proyecto')
-    ranking(calcGrupo(u=>u.digitalizador?.nombre||'Sin asignar',  ['Sin asignar']),    'Ranking por Digitalizador')
 
     // Ruta critica
     checkPage(190)
