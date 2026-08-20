@@ -559,30 +559,7 @@ const porAnalista = useMemo(() => {
             </div>
           )}
         </div>
-        {rutaCritica.length === 0 ? (
-          <div style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted)', padding:'30px 0', textAlign:'center' }}>
-            Aun no hay UOs con fecha programada y fecha real de entrega. Esta grafica se va a ir llenando conforme cierres UOs que ya tengan fecha de entrega programada.
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={rutaCritica} margin={{ left:10, right:20, bottom:40 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-              <XAxis dataKey="referencia" tick={{ fontSize:8, fill:'var(--muted2)' }} angle={-35} textAnchor="end" interval={0} />
-              <YAxis tick={{ fontSize:9, fill:'var(--muted2)' }} tickFormatter={v => new Date(v).toLocaleDateString('es-MX', { day:'2-digit', month:'short' })} />
-              <Tooltip
-                contentStyle={{ background:'#161b22', border:'0.5px solid #30363d', fontSize:'11px' }}
-                labelFormatter={l => 'UO ' + l}
-                formatter={(v, name) => [new Date(v).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' }), name]}
-              />
-              <Legend wrapperStyle={{ fontSize:'9px' }} />
-              <Line type="monotone" dataKey="programada" name="Programada" stroke={COLOR_EN_PROCESO} strokeWidth={2} dot={{ r:3 }} />
-              <Line type="monotone" dataKey="real" name="Real" stroke={COLOR_VALIDADO} strokeWidth={2}
-                dot={(props) => {
-                  const { cx, cy, payload, index } = props
-                  const color = payload.aTiempo ? COLOR_VALIDADO : COLOR_PENDIENTE
-                  return <circle key={`dot-${index}`} cx={cx} cy={cy} r={4} fill={color} stroke={color} />
-                }} />
-            </LineChart>        {rutaCritica.length === 0 ? (
+                {rutaCritica.length === 0 ? (
           <div style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted)', padding:'30px 0', textAlign:'center' }}>
             Aun no hay UOs con fecha programada y fecha real de entrega. Esta grafica se va a ir llenando conforme cierres UOs que ya tengan fecha de entrega programada.
           </div>
@@ -611,9 +588,7 @@ const porAnalista = useMemo(() => {
             </ResponsiveContainer>
           </>
         )}
-          </ResponsiveContainer>
-        )}
-      </div>
+        </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'10px' }}>
         {porTipo.map(t => (
           <div key={t.tipo} className="glass" style={{ borderRadius:'10px', overflow:'hidden' }}>
