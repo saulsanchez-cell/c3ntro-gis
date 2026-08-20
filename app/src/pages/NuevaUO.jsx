@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 
 const TIPOS_PROYECTO = ['Baseline','Active Line','Tikva','Enterprise','Data Center','IRU','Backbone','AsBuilt','Reingenieria']
 const TIPOS_INFRA = ['Backbone','Lateral','Drop','Long Haul','IRU','Inactivo','Jumper','Sin clasificar']
-const ENTIDADES = ['Aguascalientes','Baja California','Campeche','Chiapas','Chihuahua','CDMX','Coahuila','Colima','Durango','Estado de Mexico','Guanajuato','Guerrero','Hidalgo','Jalisco','Michoacan','Morelos','Nayarit','Nuevo Leon','Oaxaca','Puebla','Queretaro','Quintana Roo','San Luis Potosi','Sinaloa','Sonora','Tabasco','Tamaulipas','Tlaxcala','Veracruz','Yucatan','Zacatecas']
+const ENTIDADES = ['Aguascalientes','Baja California','Baja California Sur','Campeche','CDMX','Chiapas','Chihuahua','Coahuila','Colima','Durango','Estado de México','Guanajuato','Guerrero','Hidalgo','Jalisco','Michoacán','Morelos','Nayarit','Nuevo León','Oaxaca','Puebla','Querétaro','Quintana Roo','San Luis Potosí','Sinaloa','Sonora','Tabasco','Tamaulipas','Tlaxcala','Veracruz','Yucatán','Zacatecas']
 
 export default function NuevaUO() {
   const navigate = useNavigate()
