@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts'
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid, ReferenceLine } from 'recharts'
 import { jsPDF } from 'jspdf'
 
 const TIPOS_FIJOS = ['Tikva', 'Baseline', 'Active Line']
@@ -477,42 +477,38 @@ const porAnalista = useMemo(() => {
       y += 16
 
       const chartH = 110, chartW = COL, chartX = M, chartY = y
-      const fechasChart = rutaCritica.flatMap(rr => [rr.programada, rr.real])
-      const minF = Math.min(...fechasChart)
-      const maxF = Math.max(...fechasChart)
-      const rangoF = (maxF - minF) || 1
+      const zeroY = chartY + chartH / 2
       const n = rutaCritica.length
-      const stepX = n > 1 ? chartW / (n - 1) : 0
-      const xFor = i => chartX + i * stepX
-      const yFor = fecha => chartY + chartH - ((fecha - minF) / rangoF) * chartH
+      const stepX = n > 0 ? chartW / n : chartW
+      const barW = Math.min(24, stepX * 0.6)
+      const maxDev = Math.max(1, ...rutaCritica.map(rr => Math.abs(rr.desviacionDias)))
+      const halfH = chartH / 2 - 6
 
       sd(C.border); pdf.setLineWidth(0.5)
-      pdf.line(chartX, chartY, chartX, chartY + chartH)
-      pdf.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH)
-
-      sd(C.yellow); pdf.setLineWidth(1.2)
-      for (let i = 0; i < n - 1; i++) pdf.line(xFor(i), yFor(rutaCritica[i].programada), xFor(i + 1), yFor(rutaCritica[i + 1].programada))
-
-      sd(C.green)
-      for (let i = 0; i < n - 1; i++) pdf.line(xFor(i), yFor(rutaCritica[i].real), xFor(i + 1), yFor(rutaCritica[i + 1].real))
+      pdf.line(chartX, zeroY, chartX + chartW, zeroY)
 
       rutaCritica.forEach((rr, i) => {
+        const cx = chartX + stepX * i + stepX / 2
+        const h = Math.max(1, (Math.abs(rr.desviacionDias) / maxDev) * halfH)
         sf(rr.aTiempo ? C.green : C.red)
-        pdf.circle(xFor(i), yFor(rr.real), 1.8, 'F')
+        if (rr.desviacionDias > 0) {
+          r(cx - barW / 2, zeroY - h, barW, h)
+        } else {
+          r(cx - barW / 2, zeroY, barW, h)
+        }
       })
 
-      st(C.muted); pdf.setFontSize(6); pdf.setFont('helvetica','normal')
-      pdf.text(rutaCritica[0].referencia, chartX, chartY + chartH + 10)
-      pdf.text(rutaCritica[n - 1].referencia, chartX + chartW, chartY + chartH + 10, { align: 'right' })
-
-      y = chartY + chartH + 24
-      sf(C.yellow); r(M, y, 7, 7)
+      st(C.muted); pdf.setFontSize(5.5); pdf.setFont('helvetica','normal')
+      rutaCritica.forEach((rr, i) => {
+        const cx = chartX + stepX * i + stepX / 2
+        pdf.text(String(rr.referencia ?? '---'), cx, zeroY + halfH + 12, { angle: -90 })
+      })
+      y = zeroY + halfH + 40
+      sf(C.green); r(M, y, 7, 7)
       st(C.white); pdf.setFontSize(7); pdf.setFont('helvetica','normal')
-      pdf.text('Programada', M + 10, y + 6)
-      sf(C.green); r(M + 90, y, 7, 7)
-      pdf.text('Real - a tiempo', M + 100, y + 6)
-      sf(C.red); r(M + 200, y, 7, 7)
-      pdf.text('Real - retrasada', M + 210, y + 6)
+      pdf.text('A tiempo o antes', M + 10, y + 6)
+      sf(C.red); r(M + 110, y, 7, 7)
+      pdf.text('Con retraso', M + 120, y + 6)
       y += 20
     }
 
@@ -586,7 +582,35 @@ const porAnalista = useMemo(() => {
                   const color = payload.aTiempo ? COLOR_VALIDADO : COLOR_PENDIENTE
                   return <circle key={`dot-${index}`} cx={cx} cy={cy} r={4} fill={color} stroke={color} />
                 }} />
-            </LineChart>
+            </LineChart>        {rutaCritica.length === 0 ? (
+          <div style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted)', padding:'30px 0', textAlign:'center' }}>
+            Aun no hay UOs con fecha programada y fecha real de entrega. Esta grafica se va a ir llenando conforme cierres UOs que ya tengan fecha de entrega programada.
+          </div>
+        ) : (
+          <>
+            <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)', marginBottom:'6px' }}>
+              Barra arriba de la linea = retraso (dias) · Barra abajo = a tiempo o antes
+            </div>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={rutaCritica} margin={{ left:10, right:20, bottom:40 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="referencia" tick={{ fontSize:8, fill:'var(--muted2)' }} angle={-35} textAnchor="end" interval={0} />
+                <YAxis tick={{ fontSize:9, fill:'var(--muted2)' }} label={{ value:'dias de desviacion', angle:-90, position:'insideLeft', fill:'var(--muted2)', fontSize:9 }} />
+                <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" strokeWidth={1.5} />
+                <Tooltip
+                  contentStyle={{ background:'#161b22', border:'0.5px solid #30363d', fontSize:'11px' }}
+                  labelFormatter={l => 'UO ' + l}
+                  formatter={(v) => [(v > 0 ? '+' : '') + v + ' dia(s)', 'Desviacion']}
+                />
+                <Bar dataKey="desviacionDias" name="Desviacion (dias)">
+                  {rutaCritica.map((r, i) => (
+                    <Cell key={`cell-${i}`} fill={r.aTiempo ? COLOR_VALIDADO : COLOR_PENDIENTE} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </>
+        )}
           </ResponsiveContainer>
         )}
       </div>
