@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid, ReferenceLine } from 'recharts'
+import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts'
 import { jsPDF } from 'jspdf'
 
 const TIPOS_FIJOS = ['Tikva', 'Baseline', 'Active Line']
@@ -202,7 +202,7 @@ const porAnalista = useMemo(() => {
         const programada = new Date(u.fecha_entrega_programada).getTime()
         const real = new Date(u.fecha_carga_final).getTime()
         const desviacionDias = Math.round((real - programada) / (1000 * 60 * 60 * 24))
-        return { referencia: u.referencia_operativa, programada, real, desviacionDias, aTiempo: desviacionDias <= 0 }
+        return { referencia: u.referencia_operativa, programada, real, desviacionDias, aTiempo: desviacionDias <= 0, cero: 0 }
       })
       .sort((a, b) => a.programada - b.programada)
       .slice(-20)
@@ -470,7 +470,7 @@ const porAnalista = useMemo(() => {
       pdf.text('Aun no hay UOs con fecha programada y fecha real de entrega registradas.', M, y + 10)
       y += 30
     } else {
-      st(C.muted); pdf.setFontSize(7); pdf.setFont('helvetica','normal')
+            st(C.muted); pdf.setFontSize(7); pdf.setFont('helvetica','normal')
       const pctAT = resumenRutaCritica.pctATiempo
       const desvP = resumenRutaCritica.desviacionProm
       pdf.text(`A tiempo: ${pctAT.toFixed(0)}%   ·   Desviacion promedio: ${desvP > 0 ? '+' : ''}${desvP.toFixed(1)} dias`, M, y)
@@ -480,35 +480,36 @@ const porAnalista = useMemo(() => {
       const zeroY = chartY + chartH / 2
       const n = rutaCritica.length
       const stepX = n > 0 ? chartW / n : chartW
-      const barW = Math.min(24, stepX * 0.6)
       const maxDev = Math.max(1, ...rutaCritica.map(rr => Math.abs(rr.desviacionDias)))
       const halfH = chartH / 2 - 6
+      const xFor = i => chartX + stepX * i + stepX / 2
+      const yFor = dev => zeroY - (dev / maxDev) * halfH
 
-      sd(C.border); pdf.setLineWidth(0.5)
+      sd(C.yellow); pdf.setLineWidth(1.4); pdf.setLineDashPattern([2, 2], 0)
       pdf.line(chartX, zeroY, chartX + chartW, zeroY)
+      pdf.setLineDashPattern([], 0)
+
+      sd(C.gray); pdf.setLineWidth(1)
+      for (let i = 0; i < n - 1; i++) pdf.line(xFor(i), yFor(rutaCritica[i].desviacionDias), xFor(i + 1), yFor(rutaCritica[i + 1].desviacionDias))
 
       rutaCritica.forEach((rr, i) => {
-        const cx = chartX + stepX * i + stepX / 2
-        const h = Math.max(1, (Math.abs(rr.desviacionDias) / maxDev) * halfH)
         sf(rr.aTiempo ? C.green : C.red)
-        if (rr.desviacionDias > 0) {
-          r(cx - barW / 2, zeroY - h, barW, h)
-        } else {
-          r(cx - barW / 2, zeroY, barW, h)
-        }
+        pdf.circle(xFor(i), yFor(rr.desviacionDias), 2.2, 'F')
       })
 
       st(C.muted); pdf.setFontSize(5.5); pdf.setFont('helvetica','normal')
       rutaCritica.forEach((rr, i) => {
-        const cx = chartX + stepX * i + stepX / 2
-        pdf.text(String(rr.referencia ?? '---'), cx, zeroY + halfH + 12, { angle: -90 })
+        pdf.text(String(rr.referencia ?? '---'), xFor(i), zeroY + halfH + 12, { angle: -90 })
       })
+
       y = zeroY + halfH + 40
-      sf(C.green); r(M, y, 7, 7)
+      sf(C.yellow); r(M, y, 7, 7)
       st(C.white); pdf.setFontSize(7); pdf.setFont('helvetica','normal')
-      pdf.text('A tiempo o antes', M + 10, y + 6)
-      sf(C.red); r(M + 110, y, 7, 7)
-      pdf.text('Con retraso', M + 120, y + 6)
+      pdf.text('Programada', M + 10, y + 6)
+      sf(C.green); r(M + 90, y, 7, 7)
+      pdf.text('Real - a tiempo', M + 100, y + 6)
+      sf(C.red); r(M + 200, y, 7, 7)
+      pdf.text('Real - retrasada', M + 210, y + 6)
       y += 20
     }
 
@@ -564,29 +565,26 @@ const porAnalista = useMemo(() => {
             Aun no hay UOs con fecha programada y fecha real de entrega. Esta grafica se va a ir llenando conforme cierres UOs que ya tengan fecha de entrega programada.
           </div>
         ) : (
-          <>
-            <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)', marginBottom:'6px' }}>
-              Barra arriba de la linea = retraso (dias) · Barra abajo = a tiempo o antes
-            </div>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={rutaCritica} margin={{ left:10, right:20, bottom:40 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="referencia" tick={{ fontSize:8, fill:'var(--muted2)' }} angle={-35} textAnchor="end" interval={0} />
-                <YAxis tick={{ fontSize:9, fill:'var(--muted2)' }} label={{ value:'dias de desviacion', angle:-90, position:'insideLeft', fill:'var(--muted2)', fontSize:9 }} />
-                <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" strokeWidth={1.5} />
-                <Tooltip
-                  contentStyle={{ background:'#161b22', border:'0.5px solid #30363d', fontSize:'11px' }}
-                  labelFormatter={l => 'UO ' + l}
-                  formatter={(v) => [(v > 0 ? '+' : '') + v + ' dia(s)', 'Desviacion']}
-                />
-                <Bar dataKey="desviacionDias" name="Desviacion (dias)">
-                  {rutaCritica.map((r, i) => (
-                    <Cell key={`cell-${i}`} fill={r.aTiempo ? COLOR_VALIDADO : COLOR_PENDIENTE} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={rutaCritica} margin={{ left:10, right:20, bottom:40 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+              <XAxis dataKey="referencia" tick={{ fontSize:8, fill:'var(--muted2)' }} angle={-35} textAnchor="end" interval={0} />
+              <YAxis tick={{ fontSize:9, fill:'var(--muted2)' }} label={{ value:'dias de desviacion', angle:-90, position:'insideLeft', fill:'var(--muted2)', fontSize:9 }} />
+              <Tooltip
+                contentStyle={{ background:'#161b22', border:'0.5px solid #30363d', fontSize:'11px' }}
+                labelFormatter={l => 'UO ' + l}
+                formatter={(v, name) => name === 'Programada' ? ['objetivo', name] : [(v > 0 ? '+' : '') + v + ' dia(s)', 'Desviacion']}
+              />
+              <Legend wrapperStyle={{ fontSize:'9px' }} />
+              <Line type="monotone" dataKey="cero" name="Programada" stroke={COLOR_EN_PROCESO} strokeDasharray="4 4" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="desviacionDias" name="Real" stroke="#6B7280" strokeWidth={2}
+                dot={(props) => {
+                  const { cx, cy, payload, index } = props
+                  const color = payload.aTiempo ? COLOR_VALIDADO : COLOR_PENDIENTE
+                  return <circle key={`dot-${index}`} cx={cx} cy={cy} r={4} fill={color} stroke={color} />
+                }} />
+            </LineChart>
+          </ResponsiveContainer>
         )}
         </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'10px' }}>
