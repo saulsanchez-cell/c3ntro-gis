@@ -592,3 +592,168 @@ export function generarBitacoraUO({ uo, historial }) {
 
   doc.save(`Bitacora_${uo.referencia_operativa}.pdf`)
 }
+
+export function generarPDFEvaluacion({ persona, ev, desde, hasta }) {
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const margin = 50
+  const contentWidth = pageWidth - margin * 2
+  let y = 50
+
+  function setColor(rgb) { doc.setTextColor(rgb[0], rgb[1], rgb[2]) }
+  function setFill(rgb) { doc.setFillColor(rgb[0], rgb[1], rgb[2]) }
+  function setDraw(rgb) { doc.setDrawColor(rgb[0], rgb[1], rgb[2]) }
+
+  setFill(COLORS.dark)
+  doc.circle(margin + 10, y, 10, 'F')
+  setColor(COLORS.dark)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.text('C3NTRO TELECOM', margin + 28, y - 2)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setColor(COLORS.gray)
+  doc.text('GIS Operations', margin + 28, y + 9)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  setColor(COLORS.dark)
+  doc.text('Evaluacion de desempeño', pageWidth - margin, y - 2, { align: 'right' })
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setColor(COLORS.gray)
+  doc.text(`${desde} a ${hasta}`, pageWidth - margin, y + 9, { align: 'right' })
+
+  y += 30
+  setDraw(COLORS.border)
+  doc.setLineWidth(0.5)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 24
+
+  setFill(COLORS.lightGray)
+  doc.roundedRect(margin, y, contentWidth, 42, 4, 4, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  setColor(COLORS.dark)
+  doc.text(persona.nombre, margin + 14, y + 24)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setColor(COLORS.gray)
+  doc.text((persona.rol || '').replace('_', ' ').toUpperCase(), pageWidth - margin - 14, y + 24, { align: 'right' })
+  y += 62
+
+  function kpiRow(titulo, items) {
+    if (titulo) {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      setColor(COLORS.dark)
+      doc.text(titulo, margin, y)
+      y += 12
+    }
+    const w = (contentWidth - (items.length - 1) * 8) / items.length
+    items.forEach((it, i) => {
+      const x = margin + i * (w + 8)
+      setFill(COLORS.lightGray)
+      doc.roundedRect(x, y, w, 44, 4, 4, 'F')
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(6.5)
+      setColor(COLORS.gray)
+      const labelLines = doc.splitTextToSize(it.label, w - 12)
+      doc.text(labelLines, x + 8, y + 14)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(13)
+      setColor(it.color || COLORS.dark)
+      doc.text(String(it.val), x + 8, y + 34)
+    })
+    y += 58
+  }
+
+  kpiRow('COMO DIGITALIZADOR', [
+    { label: 'UOs asignadas', val: ev.uos_como_digitalizador },
+    { label: 'Cargas completas', val: ev.uos_cargadas_completas },
+    { label: 'Dias proceso prom.', val: ev.dias_proceso_promedio },
+    { label: 'Prom. no revision', val: ev.promedio_no_revision },
+  ])
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  setColor(COLORS.dark)
+  doc.text('RUTA CRITICA (PROGRAMADA VS. REAL)', margin, y)
+  y += 12
+
+  if (ev.ruta_critica.length === 0) {
+    setFill(COLORS.lightGray)
+    doc.roundedRect(margin, y, contentWidth, 30, 4, 4, 'F')
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    setColor(COLORS.gray)
+    doc.text('Sin UOs con fecha programada y fecha real en este periodo.', margin + 12, y + 19)
+    y += 44
+  } else {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    setColor(COLORS.gray)
+    doc.text(`A tiempo: ${ev.ruta_critica_pct_a_tiempo.toFixed(0)}%   ·   Desviacion promedio: ${ev.ruta_critica_desviacion_prom > 0 ? '+' : ''}${ev.ruta_critica_desviacion_prom.toFixed(1)} dias`, margin, y)
+    y += 14
+
+    const chartH = 80, chartW = contentWidth, chartX = margin, chartY = y
+    const zeroY = chartY + chartH / 2
+    const n = ev.ruta_critica.length
+    const stepX = n > 0 ? chartW / n : chartW
+    const maxDev = Math.max(1, ...ev.ruta_critica.map(r => Math.abs(r.desviacionDias)))
+    const halfH = chartH / 2 - 6
+    const xFor = i => chartX + stepX * i + stepX / 2
+    const yFor = dev => zeroY - (dev / maxDev) * halfH
+
+    setDraw(COLORS.yellow); doc.setLineWidth(1.2); doc.setLineDashPattern([2, 2], 0)
+    doc.line(chartX, zeroY, chartX + chartW, zeroY)
+    doc.setLineDashPattern([], 0)
+
+    setDraw(COLORS.gray); doc.setLineWidth(0.8)
+    for (let i = 0; i < n - 1; i++) doc.line(xFor(i), yFor(ev.ruta_critica[i].desviacionDias), xFor(i + 1), yFor(ev.ruta_critica[i + 1].desviacionDias))
+
+    ev.ruta_critica.forEach((r, i) => {
+      setFill(r.aTiempo ? COLORS.green : COLORS.red)
+      doc.circle(xFor(i), yFor(r.desviacionDias), 2, 'F')
+    })
+
+    doc.setFontSize(5)
+    setColor(COLORS.gray)
+    ev.ruta_critica.forEach((r, i) => {
+      doc.text(String(r.referencia ?? '---'), xFor(i), zeroY + halfH + 10, { angle: -90 })
+    })
+
+    y = zeroY + halfH + 30
+  }
+
+  kpiRow('COMO ANALISTA QA', [
+    { label: 'UOs revisadas', val: ev.uos_como_qa },
+    { label: 'Tasa aprobacion', val: ev.tasa_aprobacion },
+    { label: 'Score checklist prom.', val: ev.score_checklist_promedio },
+  ])
+  kpiRow('', [
+    { label: 'Validadas', val: ev.validadas, color: COLORS.green },
+    { label: 'Rechazadas', val: ev.rechazadas, color: COLORS.red },
+    { label: 'En correccion', val: ev.en_correccion, color: COLORS.blue },
+  ])
+
+  if (ev.uos_sla_vencido !== null && ev.uos_sla_vencido > 0) {
+    setFill([254, 242, 242])
+    doc.roundedRect(margin, y, contentWidth, 24, 4, 4, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    setColor(COLORS.red)
+    doc.text(`${ev.uos_sla_vencido} UO(s) con SLA vencido actualmente`, margin + 10, y + 16)
+    y += 34
+  }
+
+  setDraw(COLORS.border)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 14
+  doc.setFontSize(6.5)
+  setColor(COLORS.gray)
+  const fechaGen = new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
+  doc.text(`Generado el ${fechaGen}`, margin, y)
+
+  doc.save(`Evaluacion_${persona.nombre.replace(/\s+/g,'_')}_${desde}_${hasta}.pdf`)
+}
