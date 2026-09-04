@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { generarPDFEvaluacion } from '../lib/certificado'
 
 const ACTIVOS = ['Asignada','En Proceso','En Validacion']
 
@@ -14,6 +16,7 @@ function inicioTrimestre() {
   const q = Math.floor(d.getMonth() / 3) * 3
   return new Date(d.getFullYear(), q, 1).toISOString().split('T')[0]
 }
+function hoy() { return new Date().toISOString().split('T')[0] }
 
 export default function Equipo() {
   const navigate = useNavigate()
@@ -28,6 +31,7 @@ export default function Equipo() {
   const [loading, setLoading] = useState(true)
   const [showEval, setShowEval] = useState(null)
   const [periodo, setPeriodo] = useState('mes')
+  const [rangoPersonalizado, setRangoPersonalizado] = useState({ desde: '', hasta: '' })
 
   useEffect(() => { fetchData() }, [])
 
@@ -57,9 +61,9 @@ export default function Equipo() {
     URL.revokeObjectURL(url)
   }
 
-  function calcularEvaluacion(persona, desde) {
-    const comoDigitalizador = uos.filter(u => u.digitalizador_id === persona.id && u.fecha_asignacion >= desde)
-    const comoQA = uos.filter(u => u.analista_qa_id === persona.id && u.fecha_asignacion >= desde)
+  function calcularEvaluacion(persona, desde, hasta) {
+    const comoDigitalizador = uos.filter(u => u.digitalizador_id === persona.id && u.fecha_asignacion >= desde && u.fecha_asignacion <= hasta)
+    const comoQA = uos.filter(u => u.analista_qa_id === persona.id && u.fecha_asignacion >= desde && u.fecha_asignacion <= hasta)
     const validadas = comoQA.filter(u => u.estado === 'Validada').length
     const rechazadas = comoQA.filter(u => u.estado === 'Rechazada').length
     const enCorreccion = comoQA.filter(u => u.estado === 'En Correccion').length
@@ -74,12 +78,26 @@ export default function Equipo() {
     const sumNoRevision = comoDigitalizador.reduce((s,u) => s + (u.no_revision || 0), 0)
     const promNoRevision = comoDigitalizador.length > 0 ? (sumNoRevision / comoDigitalizador.length).toFixed(2) : 0
 
-    const checklistsPersona = checklistResultados.filter(c => c.analista_id === persona.id && c.fecha_revision >= desde)
+    const checklistsPersona = checklistResultados.filter(c => c.analista_id === persona.id && c.fecha_revision >= desde && c.fecha_revision <= hasta)
     const scorePromedio = checklistsPersona.length > 0
       ? (checklistsPersona.reduce((s,c) => s + (c.score_porcentaje || 0), 0) / checklistsPersona.length).toFixed(1)
       : null
 
-    const slaVencido = [...comoDigitalizador, ...comoQA].filter(u => u.sla_validacion > 3).length
+    const incluyeHoy = hasta >= hoy()
+    const slaVencido = incluyeHoy ? [...comoDigitalizador, ...comoQA].filter(u => u.sla_validacion > 3).length : null
+
+    const rutaCritica = comoDigitalizador
+      .filter(u => u.fecha_entrega_programada && u.fecha_carga_final)
+      .map(u => {
+        const programada = new Date(u.fecha_entrega_programada).getTime()
+        const real = new Date(u.fecha_carga_final).getTime()
+        const desviacionDias = Math.round((real - programada) / (1000 * 60 * 60 * 24))
+        return { referencia: u.referencia_operativa, desviacionDias, aTiempo: desviacionDias <= 0, cero: 0 }
+      })
+      .sort((a, b) => a.referencia.localeCompare(b.referencia))
+
+    const rutaCriticaPctATiempo = rutaCritica.length > 0 ? (rutaCritica.filter(r => r.aTiempo).length / rutaCritica.length) * 100 : null
+    const rutaCriticaDesviacionProm = rutaCritica.length > 0 ? rutaCritica.reduce((s, r) => s + r.desviacionDias, 0) / rutaCritica.length : null
 
     return {
       nombre: persona.nombre,
@@ -94,6 +112,9 @@ export default function Equipo() {
       score_checklist_promedio: scorePromedio ? scorePromedio+'%' : '---',
       checklists_revisados: checklistsPersona.length,
       uos_sla_vencido: slaVencido,
+      ruta_critica: rutaCritica,
+      ruta_critica_pct_a_tiempo: rutaCriticaPctATiempo,
+      ruta_critica_desviacion_prom: rutaCriticaDesviacionProm,
     }
   }
 
@@ -188,25 +209,37 @@ export default function Equipo() {
                 <div style={{ fontWeight:'700', fontSize:'15px' }}>Evaluacion · {showEval.nombre}</div>
                 <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>{showEval.rol.replace('_',' ').toUpperCase()}</div>
               </div>
-              <div style={{ display:'flex', background:'var(--surface2)', borderRadius:'6px', padding:'2px', gap:'1px' }}>
-                {['mes','trimestre'].map(per => (
-                  <button key={per} onClick={() => setPeriodo(per)}
-                    style={{ padding:'4px 10px', borderRadius:'4px', fontSize:'9px', border:'none', fontFamily:'var(--mono)',
-                      background: periodo===per ? 'var(--surface4)' : 'none',
-                      color: periodo===per ? 'var(--text)' : 'var(--muted2)' }}>
-                    {per.toUpperCase()}
-                  </button>
-                ))}
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'6px' }}>
+                <div style={{ display:'flex', background:'var(--surface2)', borderRadius:'6px', padding:'2px', gap:'1px' }}>
+                  {['mes','trimestre','personalizado'].map(per => (
+                    <button key={per} onClick={() => setPeriodo(per)}
+                      style={{ padding:'4px 10px', borderRadius:'4px', fontSize:'9px', border:'none', fontFamily:'var(--mono)',
+                        background: periodo===per ? 'var(--surface4)' : 'none',
+                        color: periodo===per ? 'var(--text)' : 'var(--muted2)' }}>
+                      {per.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+                {periodo === 'personalizado' && (
+                  <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                    <input type="date" value={rangoPersonalizado.desde} onChange={e => setRangoPersonalizado(r => ({ ...r, desde: e.target.value }))}
+                      style={{ padding:'4px 6px', fontSize:'9px' }} />
+                    <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)' }}>a</span>
+                    <input type="date" value={rangoPersonalizado.hasta} onChange={e => setRangoPersonalizado(r => ({ ...r, hasta: e.target.value }))}
+                      style={{ padding:'4px 6px', fontSize:'9px' }} />
+                  </div>
+                )}
               </div>
             </div>
 
             {(() => {
-              const desde = periodo === 'mes' ? inicioMes() : inicioTrimestre()
-              const ev = calcularEvaluacion(showEval, desde)
+              const desde = periodo === 'mes' ? inicioMes() : periodo === 'trimestre' ? inicioTrimestre() : (rangoPersonalizado.desde || inicioMes())
+              const hasta = periodo === 'personalizado' ? (rangoPersonalizado.hasta || hoy()) : hoy()
+              const ev = calcularEvaluacion(showEval, desde, hasta)
               return (
                 <>
                   <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)' }}>
-                    Periodo desde {desde}
+                    Periodo: {desde} a {hasta}
                   </div>
 
                   <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.1em', marginTop:'4px' }}>COMO DIGITALIZADOR</div>
@@ -223,6 +256,36 @@ export default function Equipo() {
                       </div>
                     ))}
                   </div>
+
+                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginTop:'4px' }}>RUTA CRITICA (PROGRAMADA VS. REAL)</div>
+                  {ev.ruta_critica.length === 0 ? (
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)', padding:'12px 0', textAlign:'center', background:'var(--surface2)', borderRadius:'6px' }}>
+                      Sin UOs con fecha programada y fecha real en este periodo.
+                    </div>
+                  ) : (
+                    <div style={{ background:'var(--surface2)', borderRadius:'6px', padding:'8px 4px 2px 4px' }}>
+                      <div style={{ display:'flex', gap:'12px', padding:'0 8px 4px 8px', fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)' }}>
+                        <span>A tiempo: <b style={{ color: ev.ruta_critica_pct_a_tiempo >= 90 ? 'var(--green)' : 'var(--yellow)' }}>{ev.ruta_critica_pct_a_tiempo.toFixed(0)}%</b></span>
+                        <span>Desviacion prom.: <b style={{ color: ev.ruta_critica_desviacion_prom <= 0 ? 'var(--green)' : 'var(--red)' }}>{ev.ruta_critica_desviacion_prom > 0 ? '+' : ''}{ev.ruta_critica_desviacion_prom.toFixed(1)}d</b></span>
+                      </div>
+                      <ResponsiveContainer width="100%" height={140}>
+                        <LineChart data={ev.ruta_critica} margin={{ left:4, right:10, bottom:0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                          <XAxis dataKey="referencia" tick={{ fontSize:7, fill:'var(--muted2)' }} hide={ev.ruta_critica.length > 8} />
+                          <YAxis tick={{ fontSize:8, fill:'var(--muted2)' }} width={26} />
+                          <Tooltip contentStyle={{ background:'#161b22', border:'0.5px solid #30363d', fontSize:'10px' }}
+                            formatter={(v) => [(v > 0 ? '+' : '') + v + ' dia(s)', 'Desviacion']} />
+                          <Line type="monotone" dataKey="cero" stroke="var(--yellow)" strokeDasharray="4 4" strokeWidth={1.5} dot={false} />
+                          <Line type="monotone" dataKey="desviacionDias" stroke="#6B7280" strokeWidth={1.5}
+                            dot={(props) => {
+                              const { cx, cy, payload, index } = props
+                              const color = payload.aTiempo ? 'var(--green)' : 'var(--red)'
+                              return <circle key={`dot-${index}`} cx={cx} cy={cy} r={3} fill={color} stroke={color} />
+                            }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
 
                   <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.1em', marginTop:'4px' }}>COMO ANALISTA QA</div>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
@@ -241,16 +304,22 @@ export default function Equipo() {
                     ))}
                   </div>
 
-                  {ev.uos_sla_vencido > 0 && (
+                  {ev.uos_sla_vencido !== null && ev.uos_sla_vencido > 0 && (
                     <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--red)', background:'rgba(239,68,68,0.08)', border:'0.5px solid rgba(239,68,68,0.2)', borderRadius:'5px', padding:'8px 12px' }}>
                       {ev.uos_sla_vencido} UO(s) con SLA vencido actualmente
                     </div>
                   )}
 
-                  <button onClick={() => exportCSV([ev], `evaluacion_${showEval.nombre.replace(/\s+/g,'_')}_${periodo}`)}
-                    style={{ padding:'8px 0', borderRadius:'5px', border:'0.5px solid var(--border)', background:'none', color:'var(--muted2)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer' }}>
-                    EXPORTAR CSV
-                  </button>
+                  <div style={{ display:'flex', gap:'8px' }}>
+                    <button onClick={() => exportCSV([ev], `evaluacion_${showEval.nombre.replace(/\s+/g,'_')}_${desde}_${hasta}`)}
+                      style={{ flex:1, padding:'8px 0', borderRadius:'5px', border:'0.5px solid var(--border)', background:'none', color:'var(--muted2)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer' }}>
+                      EXPORTAR CSV
+                    </button>
+                    <button onClick={() => generarPDFEvaluacion({ persona: showEval, ev, desde, hasta })}
+                      style={{ flex:1, padding:'8px 0', borderRadius:'5px', border:'0.5px solid rgba(249,115,22,0.3)', background:'rgba(249,115,22,0.08)', color:'var(--orange)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer' }}>
+                      DESCARGAR PDF
+                    </button>
+                  </div>
                 </>
               )
             })()}
