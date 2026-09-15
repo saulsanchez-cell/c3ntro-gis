@@ -38,7 +38,7 @@ export default function Equipo() {
   async function fetchData() {
     const [{ data: perfiles }, { data: uosData }, { data: checklistData }] = await Promise.all([
       supabase.from('profiles').select('*').eq('activo', true),
-      supabase.from('unidades_operativas').select('id,estado,prioridad,referencia_operativa,nombre,digitalizador_id,analista_qa_id,sla_validacion,dias_proceso,no_revision,fecha_asignacion,fecha_carga_final').eq('es_historico', false),
+      supabase.from('unidades_operativas').select('id,estado,prioridad,referencia_operativa,nombre,digitalizador_id,analista_qa_id,sla_validacion,dias_proceso,no_revision,fecha_asignacion,fecha_carga_final,fecha_entrega_programada').eq('es_historico', false),
       supabase.from('checklist_resultados').select('*'),
     ])
     setEquipo(perfiles || [])
