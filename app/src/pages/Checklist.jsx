@@ -32,10 +32,12 @@ export default function Checklist() {
   const [modalData, setModalData] = useState(null)
   const [motivoRechazo, setMotivoRechazo] = useState('')
   const [noRevision, setNoRevision] = useState(1)
+  const [comentariosAnteriores, setComentariosAnteriores] = useState({})
+  const [comentariosAnteriores, setComentariosAnteriores] = useState({})
 
   useEffect(() => { fetchData() }, [id])
 
-  async function fetchData() {
+    async function fetchData() {
     const [{ data: uoData }, { data: itemsData }, { data: catData }, { data: revData }] = await Promise.all([
       supabase.from('unidades_operativas').select('*, digitalizador:profiles!digitalizador_id(nombre), analista_qa:profiles!analista_qa_id(id,nombre,iniciales)').eq('id', id).single(),
       supabase.from('checklist_items').select('*').eq('activo', true).order('orden'),
@@ -54,31 +56,51 @@ export default function Checklist() {
       .eq('usuario_id', profile.id)
       .maybeSingle()
 
-   if (borrador) {
+    const { data: resAnterior } = await supabase
+      .from('checklist_resultados')
+      .select('id, drop_aplica, resultado')
+      .eq('uo_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    let respAnteriores = null
+    if (resAnterior) {
+      const { data } = await supabase
+        .from('checklist_respuestas')
+        .select('*')
+        .eq('resultado_id', resAnterior.id)
+      respAnteriores = data
+    }
+
+    if (respAnteriores) {
+      const comentarios = {}
+      respAnteriores.forEach(r => {
+        if (!r.resuelta_en_revision && (r.observacion_familia || r.observacion_categoria || r.observacion_descripcion)) {
+          comentarios[r.item_id] = {
+            familia: r.observacion_familia,
+            categoria: r.observacion_categoria,
+            descripcion: r.observacion_descripcion,
+          }
+        }
+      })
+      setComentariosAnteriores(comentarios)
+    } else {
+      setComentariosAnteriores({})
+    }
+
+    if (borrador) {
       setRespuestas(borrador.respuestas || {})
       if (borrador.drop_aplica) setDropAplica(borrador.drop_aplica)
       setTieneBorrador(true)
     } else {
-      const { data: resAnterior } = await supabase
-        .from('checklist_resultados')
-        .select('id, drop_aplica')
-        .eq('uo_id', id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
       const init = {}
       itemsData?.forEach(item => {
         init[item.id] = { esperados: '', conformes: '', obs_familia: '', obs_categoria: '', obs_descripcion: '', hubo_correccion: false }
       })
 
-      if (resAnterior) {
-        const { data: respAnteriores } = await supabase
-          .from('checklist_respuestas')
-          .select('*')
-          .eq('resultado_id', resAnterior.id)
-
-        respAnteriores?.forEach(r => {
+      if (resAnterior && respAnteriores) {
+        respAnteriores.forEach(r => {
           if (init[r.item_id]) {
             init[r.item_id] = {
               esperados: String(r.puntos_esperados ?? ''),
@@ -91,7 +113,7 @@ export default function Checklist() {
         if (resAnterior.drop_aplica) setDropAplica(resAnterior.drop_aplica)
       }
       setRespuestas(init)
-      }
+    }
     setLoading(false)
   }
 
@@ -424,6 +446,22 @@ if (itemsSinDescripcion.length > 0) {
                           )}
                         </div>
                       </div>
+
+                      {comentariosAnteriores[item.id] && (
+                        <div style={{ margin: '0 14px 8px', padding: '8px 10px', background: 'rgba(139,92,246,0.08)', border: '0.5px solid rgba(139,92,246,0.25)', borderRadius: '5px' }}>
+                          <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: 'var(--accent-a)', letterSpacing: '0.08em', marginBottom: 4 }}>OBSERVACION DEL RECHAZO ANTERIOR · SOLO LECTURA</div>
+                          {(comentariosAnteriores[item.id].familia || comentariosAnteriores[item.id].categoria) && (
+                            <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: 'var(--muted2)', marginBottom: 3 }}>
+                              {comentariosAnteriores[item.id].familia}{comentariosAnteriores[item.id].familia && comentariosAnteriores[item.id].categoria ? ' · ' : ''}{comentariosAnteriores[item.id].categoria}
+                            </div>
+                          )}
+                          {comentariosAnteriores[item.id].descripcion && (
+                            <div style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--text)', fontStyle: 'italic' }}>
+                              "{comentariosAnteriores[item.id].descripcion}"
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {esCritico && (
                         <div style={{ margin: '0 14px 8px', padding: '6px 10px', background: 'rgba(239,68,68,0.08)', border: '0.5px solid rgba(239,68,68,0.2)', borderRadius: '5px', fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--red)' }}>
