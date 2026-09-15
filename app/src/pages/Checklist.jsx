@@ -33,7 +33,6 @@ export default function Checklist() {
   const [motivoRechazo, setMotivoRechazo] = useState('')
   const [noRevision, setNoRevision] = useState(1)
   const [comentariosAnteriores, setComentariosAnteriores] = useState({})
-  const [comentariosAnteriores, setComentariosAnteriores] = useState({})
 
   useEffect(() => { fetchData() }, [id])
 
