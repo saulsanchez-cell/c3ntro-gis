@@ -1,4 +1,5 @@
 -- =============================================================================
+-- *** APLICADO EN SIGOPRUEBA Y PRODUCCIÓN ***
 -- Restringe a `authenticated` las políticas RLS de public que estaban TO public
 -- (incluían al rol anon, o sea, acceso sin login con la anon key).
 --
