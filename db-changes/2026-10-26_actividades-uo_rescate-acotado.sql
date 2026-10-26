@@ -4,7 +4,7 @@
 -- fija de UOs. No reemplaza ni modifica
 -- 2026-10-23_actividades-uo_rescate-opcional.sql.
 --
--- Aplicado en SIGOprueba (iadojhaibxpnirzijivf): AAAA-MM-DD  <-- completar
+-- Aplicado en SIGOprueba (iadojhaibxpnirzijivf): NO PROBADO (las UOs 1282 y 1420 no existen allí)
 -- Aplicado en producción (rtwjwfpaturmbmegwtys): 2026-10-26 (solo UOs 1282 y 1420)
 --
 -- Requiere: 2026-10-23_actividades-uo.sql aplicado.
