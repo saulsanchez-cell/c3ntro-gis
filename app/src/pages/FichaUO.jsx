@@ -7,6 +7,29 @@ import { generarCertificado, generarCertificadoConectividad, generarPDFAsignacio
 const FASES = ['Preparacion','Carga parcial','Carga completa']
 const PRIORIDADES = ['P1','P2','P3']
 const USUARIO_AUTORIZADO_DISTANCIA = '7063db07-ed16-4ca5-8c98-53b63d128702'
+// Mismo UUID fijo que es_coordinador() en la base. Deuda técnica v2.
+const COORDINADOR_ACTIVIDADES = '7063db07-ed16-4ca5-8c98-53b63d128702'
+
+// Instante -> texto 'YYYY-MM-DDTHH:mm' de <input type="datetime-local"> en hora
+// de Ciudad de México, sin importar la zona del navegador.
+const FORMATO_INPUT_MX = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Mexico_City',
+  year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+})
+function aInputMexico(fecha) {
+  const p = Object.fromEntries(FORMATO_INPUT_MX.formatToParts(new Date(fecha)).map(x => [x.type, x.value]))
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`
+}
+
+// Valor del input (hora de CDMX, sin horario de verano desde 2022) -> timestamptz con offset fijo
+function conOffsetMexico(valorInput) {
+  return valorInput + ':00-06:00'
+}
+
+function formatoHora(fecha) {
+  return new Date(fecha).toLocaleString('es-MX', { timeZone: 'America/Mexico_City', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+}
 
 export default function FichaUO() {
   const { id } = useParams()
@@ -40,6 +63,11 @@ export default function FichaUO() {
   const [distanciaForm, setDistanciaForm] = useState({ valor: '', motivo: '' })
   const [savingDistancia, setSavingDistancia] = useState(false)
   const [distanciaError, setDistanciaError] = useState('')
+  const [actividades, setActividades] = useState([])
+  const [actividadError, setActividadError] = useState('')
+  const [savingActividad, setSavingActividad] = useState(false)
+  // modo: 'tarde' (marcar con hora anterior) | 'ajustar' (editar hora) | 'desmarcar'
+  const [actividadModal, setActividadModal] = useState(null)
   const [asignacion, setAsignacion] = useState({
     digitalizador_id: '', analista_qa_id: '', prioridad: 'P3',
     link_archivos: '', observaciones: '', metodo_constructivo: '',
@@ -48,7 +76,24 @@ export default function FichaUO() {
 
   useEffect(() => { fetchAll() }, [id])
 
+  // Falla en silencio: si las tablas no existen (base sin la migración) o hay
+  // cualquier error, la sección no se muestra y el resto de la ficha sigue igual.
+  async function fetchActividades() {
+    try {
+      const { data, error } = await supabase
+        .from('actividades_uo')
+        .select('*, responsable:profiles!responsable_id(nombre,iniciales), completada_por_perfil:profiles!completada_por(nombre,iniciales)')
+        .eq('uo_id', id)
+        .order('ronda', { ascending: true })
+        .order('orden', { ascending: true })
+      setActividades(error ? [] : (data || []))
+    } catch {
+      setActividades([])
+    }
+  }
+
   async function fetchAll() {
+    fetchActividades()
     const [{ data: uoData }, { data: logsData }, { data: histData }, { data: equipoData }] = await Promise.all([
       supabase.from('unidades_operativas').select('*, digitalizador:profiles!digitalizador_id(id,nombre,iniciales), analista_qa:profiles!analista_qa_id(id,nombre,iniciales)').eq('id', id).single(),
       supabase.from('logs_actividad').select('*, usuario:profiles(nombre,iniciales)').eq('uo_id', id).order('created_at', { ascending: false }),
@@ -287,6 +332,45 @@ export default function FichaUO() {
     fetchAll()
   }
 
+  async function marcarActividad(act) {
+    setActividadError('')
+    setSavingActividad(true)
+    const { error } = await supabase.rpc('marcar_actividad', { p_actividad: act.id })
+    setSavingActividad(false)
+    if (error) { setActividadError('No se pudo marcar: ' + error.message); return }
+    fetchActividades()
+  }
+
+  function abrirActividadModal(modo, act) {
+    setActividadError('')
+    setActividadModal({ modo, act, hora: aInputMexico(act.completada_en || new Date()), motivo: '' })
+  }
+
+  async function guardarActividadModal() {
+    const { modo, act, hora, motivo } = actividadModal
+    setActividadError('')
+    if (motivo.trim().length < 10) { setActividadError('El motivo es obligatorio (minimo 10 caracteres).'); return }
+    let horaMx = null
+    if (modo !== 'desmarcar') {
+      if (!hora) { setActividadError('Indica la hora.'); return }
+      horaMx = conOffsetMexico(hora)
+      // Solo para validar en el cliente; a la RPC va horaMx tal cual.
+      const instante = new Date(horaMx)
+      if (isNaN(instante)) { setActividadError('Indica la hora.'); return }
+      if (instante > new Date()) { setActividadError('La hora no puede ser futura.'); return }
+      if (instante < new Date(act.created_at)) { setActividadError('La hora no puede ser anterior a la asignacion (' + formatoHora(act.created_at) + ').'); return }
+    }
+    setSavingActividad(true)
+    const { error } =
+      modo === 'tarde'   ? await supabase.rpc('marcar_actividad', { p_actividad: act.id, p_hora_real: horaMx, p_motivo: motivo.trim() }) :
+      modo === 'ajustar' ? await supabase.rpc('ajustar_hora_actividad', { p_actividad: act.id, p_hora: horaMx, p_motivo: motivo.trim() }) :
+                           await supabase.rpc('desmarcar_actividad', { p_actividad: act.id, p_motivo: motivo.trim() })
+    setSavingActividad(false)
+    if (error) { setActividadError(error.message); return }
+    setActividadModal(null)
+    fetchActividades()
+  }
+
   if (loading) return <div style={{ padding:'40px', fontFamily:'var(--mono)', fontSize:'11px', color:'var(--muted2)' }}>Cargando ficha...</div>
   if (!uo) return <div style={{ padding:'40px', fontFamily:'var(--mono)', fontSize:'11px', color:'var(--red)' }}>No encontrada</div>
 
@@ -450,6 +534,70 @@ export default function FichaUO() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {actividades.length > 0 && (
+            <div style={{ padding:'14px 20px', borderBottom:'0.5px solid var(--border2)' }}>
+              <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.12em', marginBottom:'10px' }}>
+                ACTIVIDADES · {actividades.filter(a => a.completada_en).length}/{actividades.length} completadas
+              </div>
+              {actividadError && !actividadModal && (
+                <div style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--red)', background:'rgba(239,68,68,0.08)', border:'0.5px solid rgba(239,68,68,0.2)', borderRadius:'5px', padding:'8px 12px', marginBottom:'8px' }}>{actividadError}</div>
+              )}
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                {actividades.map(act => {
+                  const completada = !!act.completada_en
+                  const puedeModificar = profile?.id === act.responsable_id || profile?.id === COORDINADOR_ACTIVIDADES
+                  return (
+                    <div key={act.id} style={{ background:'var(--surface2)', border:'0.5px solid var(--border2)', borderLeft: '2px solid ' + (completada ? 'var(--green)' : 'var(--border2)'), borderRadius:'6px', padding:'10px 12px', display:'grid', gridTemplateColumns:'1fr auto', gap:'10px', alignItems:'center' }}>
+                      <div>
+                        <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'3px' }}>
+                          <span style={{ fontSize:'11px', color: completada ? 'var(--text)' : 'var(--muted2)', fontWeight:'500' }}>{act.orden}. {act.nombre}</span>
+                          {act.registrada_tarde && (
+                            <span title={act.motivo_ajuste || ''} style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'1px 5px', borderRadius:'3px', background:'rgba(234,179,8,0.12)', color:'var(--yellow)' }}>HORA AJUSTADA</span>
+                          )}
+                        </div>
+                        <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)' }}>
+                          {completada
+                            ? <>Completada {formatoHora(act.completada_en)} · {act.completada_por_perfil?.nombre ?? '---'}</>
+                            : <>Pendiente · {act.responsable?.nombre ?? 'Sin responsable'}</>}
+                        </div>
+                        {act.registrada_tarde && act.motivo_ajuste && (
+                          <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', fontStyle:'italic', marginTop:'3px' }}>"{act.motivo_ajuste}"</div>
+                        )}
+                      </div>
+                      {puedeModificar && (
+                        <div style={{ display:'flex', gap:'4px' }}>
+                          {!completada ? (
+                            <>
+                              <button onClick={() => marcarActividad(act)} disabled={savingActividad}
+                                style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'4px 8px', borderRadius:'4px', border:'0.5px solid rgba(34,197,94,0.3)', background:'rgba(34,197,94,0.08)', color:'var(--green)' }}>
+                                MARCAR
+                              </button>
+                              <button onClick={() => abrirActividadModal('tarde', act)} disabled={savingActividad}
+                                style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'4px 8px', borderRadius:'4px', border:'0.5px solid var(--border2)', background:'none', color:'var(--muted2)' }}>
+                                CON HORA ANTERIOR
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button onClick={() => abrirActividadModal('ajustar', act)} disabled={savingActividad}
+                                style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'4px 8px', borderRadius:'4px', border:'0.5px solid var(--border2)', background:'none', color:'var(--muted2)' }}>
+                                EDITAR HORA
+                              </button>
+                              <button onClick={() => abrirActividadModal('desmarcar', act)} disabled={savingActividad}
+                                style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'4px 8px', borderRadius:'4px', border:'0.5px solid rgba(239,68,68,0.3)', background:'none', color:'var(--red)' }}>
+                                DESMARCAR
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -794,6 +942,65 @@ export default function FichaUO() {
               <button onClick={guardarDistancia} disabled={savingDistancia}
                 style={{ padding:'7px 14px', borderRadius:'5px', border:'none', background:'var(--orange)', color:'#080808', fontSize:'10px', fontFamily:'var(--mono)', fontWeight:'500' }}>
                 {savingDistancia ? 'GUARDANDO...' : 'GUARDAR DISTANCIA'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {actividadModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
+          <div style={{ background:'var(--surface)', border:'0.5px solid var(--border)', borderRadius:'10px', padding:'24px', width:'400px', display:'flex', flexDirection:'column', gap:'14px' }}>
+            <div style={{ fontWeight:'700', fontSize:'15px' }}>
+              {actividadModal.modo === 'tarde' ? 'Marcar con hora anterior' : actividadModal.modo === 'ajustar' ? 'Editar hora' : 'Desmarcar actividad'}
+            </div>
+            <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>
+              {actividadModal.act.orden}. {actividadModal.act.nombre}
+            </div>
+
+            {actividadModal.modo === 'ajustar' && (
+              <div>
+                <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>HORA ACTUAL</div>
+                <div style={{ fontFamily:'var(--mono)', fontSize:'11px', color:'var(--muted2)' }}>{formatoHora(actividadModal.act.completada_en)}</div>
+              </div>
+            )}
+
+            {actividadModal.modo !== 'desmarcar' && (
+              <div>
+                <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>
+                  {actividadModal.modo === 'ajustar' ? 'NUEVA HORA *' : 'HORA REAL *'}
+                </div>
+                <input type="datetime-local" value={actividadModal.hora}
+                  min={aInputMexico(actividadModal.act.created_at)} max={aInputMexico(new Date())}
+                  onChange={e => setActividadModal(m => ({ ...m, hora: e.target.value }))} />
+              </div>
+            )}
+
+            <div>
+              <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }}>MOTIVO *</div>
+              <textarea rows={3} value={actividadModal.motivo}
+                onChange={e => setActividadModal(m => ({ ...m, motivo: e.target.value }))}
+                placeholder={actividadModal.modo === 'desmarcar' ? 'Por que se desmarca...' : 'Por que se registra con otra hora...'}
+                style={{ resize:'vertical', fontSize:'11px' }} />
+              <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color: actividadModal.motivo.trim().length >= 10 ? 'var(--green)' : 'var(--muted2)', marginTop:'3px' }}>
+                {actividadModal.motivo.trim().length}/10 caracteres minimo
+              </div>
+            </div>
+
+            {actividadError && (
+              <div style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--red)', background:'rgba(239,68,68,0.08)', border:'0.5px solid rgba(239,68,68,0.2)', borderRadius:'5px', padding:'8px 12px' }}>
+                {actividadError}
+              </div>
+            )}
+
+            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+              <button onClick={() => { setActividadModal(null); setActividadError('') }}
+                style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid var(--border)', background:'none', color:'var(--muted2)', fontSize:'10px', fontFamily:'var(--mono)' }}>
+                CANCELAR
+              </button>
+              <button onClick={guardarActividadModal} disabled={savingActividad}
+                style={{ padding:'7px 14px', borderRadius:'5px', border:'none', background: actividadModal.modo === 'desmarcar' ? 'var(--red)' : 'var(--orange)', color:'#080808', fontSize:'10px', fontFamily:'var(--mono)', fontWeight:'500' }}>
+                {savingActividad ? 'GUARDANDO...' : actividadModal.modo === 'desmarcar' ? 'DESMARCAR' : 'GUARDAR HORA'}
               </button>
             </div>
           </div>
