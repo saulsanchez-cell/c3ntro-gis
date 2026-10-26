@@ -1,10 +1,10 @@
 -- =============================================================================
--- *** APLICADO EN SIGOPRUEBA, PENDIENTE EN PRODUCCIÓN ***
+-- *** APLICADO EN SIGOPRUEBA Y PRODUCCIÓN ***
 -- Endurece public.proteger_km_teoricos() (trigger trg_proteger_km_teoricos en
 -- unidades_operativas).
 --
 -- Aplicado en SIGOprueba (iadojhaibxpnirzijivf): 2026-10-23
--- Aplicado en producción (rtwjwfpaturmbmegwtys): PENDIENTE
+-- Aplicado en producción (rtwjwfpaturmbmegwtys): 2026-10-26
 --
 -- Reversa:  2026-10-23_proteger-km-teoricos-endurecer_reversa.sql
 -- Pruebas:  2026-10-23_proteger-km-teoricos-endurecer_pruebas.sql (termina en rollback)
