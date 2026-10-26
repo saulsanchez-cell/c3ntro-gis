@@ -1,9 +1,9 @@
 -- =============================================================================
--- *** APLICADO EN SIGOPRUEBA, PENDIENTE EN PRODUCCIÓN ***
+-- *** APLICADO EN SIGOPRUEBA Y PRODUCCIÓN ***
 -- Actividades por UO (fase 1): seguimiento granular dentro de cada UO.
 --
 -- Aplicado en SIGOprueba (iadojhaibxpnirzijivf): 2026-10-23
--- Aplicado en producción (rtwjwfpaturmbmegwtys): PENDIENTE
+-- Aplicado en producción (rtwjwfpaturmbmegwtys): 2026-10-26
 --
 -- Reversa:  2026-10-23_actividades-uo_reversa.sql
 -- Pruebas:  2026-10-23_actividades-uo_pruebas.sql (termina en rollback)
