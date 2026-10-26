@@ -29,7 +29,7 @@ Marcas de estado:
 Las reversas, el seed y los rescates no llevan fecha hasta que se apliquen.
 
 Reglas:
-- **El agente no ejecuta SQL contra ninguna base.** Escribe los archivos y la persona los aplica.
+- **El agente no aplica cambios en ninguna base.** Escribe los archivos y la persona los aplica. Sí puede hacer consultas de solo lectura sobre SIGOprueba por el MCP (esquema, políticas, permisos, definiciones, conteos). Nunca SQL que escriba, ni consultas contra producción.
 - Orden de aplicación: SIGOprueba, pruebas, producción, verificación, y al final el commit con las fechas.
 - Cada archivo va dentro de `begin; ... commit;`. El SQL Editor de Supabase deshace todo cuando un script completo falla (comprobado el 2026-10-26).
 - Si hay texto seleccionado en el editor, solo se ejecuta la selección. Hay que quitarla antes de ejecutar.
@@ -37,7 +37,7 @@ Reglas:
 - Los scripts de rescate o de datos se dividen en una parte A (solo lectura, vista previa) y una parte B (la escritura), que se corren por separado.
 - El editor solo muestra el resultado de la última consulta. Las verificaciones van cada una en su propia consulta.
 - Los scripts de pruebas terminan en `rollback`. Los de seed o rescate guardan datos y nunca se corren en producción sin revisar.
-- Los UUID de usuario o claves no se escriben en el repo. Se reemplazan en el editor al momento de correr el script.
+- No se escriben en el repo claves ni los UUID de usuarios de Authentication (seed, pruebas): se reemplazan en el editor al correr el script. Excepción documentada: el UUID fijo del coordinador, que ya existe en el código y en las políticas.
 - `schema.sql` en la raíz es un dump local, excluido en `.git/info/exclude`. Puede estar desactualizado y no se sube.
 
 ## Seguridad en la base
