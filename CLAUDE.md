@@ -12,6 +12,7 @@ La reconstrucción v2 (Laravel, Vue, MySQL, Entra ID, GitLab) se hace aparte con
 
 - **Producción:** `rtwjwfpaturmbmegwtys`. Datos reales. El agente nunca se conecta a este proyecto ni lo modifica.
 - **SIGOprueba:** `iadojhaibxpnirzijivf`. Esquema de SIGO sin datos reales. El MCP de Supabase apunta solo aquí, en solo lectura.
+- Si se recrea el Codespace, reconectar el MCP solo a SIGOprueba: `claude mcp add --transport http supabase "https://mcp.supabase.com/mcp?project_ref=iadojhaibxpnirzijivf&read_only=true&features=database,docs"`. Nunca con el ID de producción.
 - `app/.env.local` apunta a SIGOprueba. Git lo ignora por la regla `*.local`. No lo leas, no lo imprimas y no pidas claves.
 - Sin ese archivo, `app/src/lib/supabase.js` usa producción. En desarrollo avisa con `console.warn`.
 - Los previews de Vercel usan producción. No hagas pruebas que escriban datos en un preview.
@@ -25,6 +26,7 @@ Marcas de estado:
 - `PROPUESTO, NO APLICADO`
 - `APLICADO EN SIGOPRUEBA, PENDIENTE EN PRODUCCIÓN`
 - `APLICADO EN SIGOPRUEBA Y PRODUCCIÓN`
+- `APLICADO EN PRODUCCIÓN` (cambios de datos que solo existen en producción, como un rescate acotado)
 
 Las reversas, el seed y los rescates no llevan fecha hasta que se apliquen.
 
