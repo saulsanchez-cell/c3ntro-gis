@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { generarPDFPlanSemanal } from '../lib/certificado'
 
 const DIAS = ['LUN', 'MAR', 'MIE', 'JUE', 'VIE']
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
@@ -92,10 +93,21 @@ function estadoPaso(a, hoy) {
 
 function estadoCarga(j, cap) {
   const libre = cap - j
-  if (cap <= EPS && j <= EPS) return { txt:'Sin capacidad', color:'var(--muted)' }
-  if (libre > EPS) return { txt:'Libre ' + fmt(libre), color:'var(--green)' }
-  if (libre >= -EPS) return { txt:'Completo', color:'var(--orange)' }
-  return { txt:'Sobrecarga +' + fmt(-libre), color:'var(--red)' }
+  if (cap <= EPS && j <= EPS) return { txt:'Sin capacidad', tono:'muted', color:'var(--muted)' }
+  if (libre > EPS) return { txt:'Libre ' + fmt(libre), tono:'green', color:'var(--green)' }
+  if (libre >= -EPS) return { txt:'Completo', tono:'orange', color:'var(--orange)' }
+  return { txt:'Sobrecarga +' + fmt(-libre), tono:'red', color:'var(--red)' }
+}
+
+// Estado de una tarjeta de UO; lo usan la pantalla y el PDF
+function resumenTarjeta(uo, pasos, hoy) {
+  const estados = PASOS.map(o => estadoPaso(pasos[o], hoy))
+  const ajustadas = PASOS.map(o => pasos[o]).filter(a => a && a.fecha_origen === 'ajustada')
+  const fechas = PASOS.map(o => pasos[o]?.fecha_programada).filter(Boolean).sort()
+  const ultima = fechas[fechas.length - 1]
+  const tarde = Boolean(uo.fecha_entrega_programada && ultima && ultima > uo.fecha_entrega_programada)
+  const tono = estados.includes('atrasada') ? 'red' : estados.every(e => e === 'hecha') ? 'green' : 'orange'
+  return { estados, ajustadas, ultima, tarde, tono }
 }
 
 const TH = { textAlign:'left', fontSize:10, textTransform:'uppercase', letterSpacing:'0.06em', color:'var(--muted)', fontWeight:600, padding:'10px 16px', borderBottom:'0.5px solid var(--border2)' }
@@ -386,12 +398,8 @@ function FondoDias({ dias, hoy, filas }) {
 }
 
 function TarjetaUo({ it, uo, pasos, hoy, onAbrir, onReprogramar }) {
-  const estados = PASOS.map(o => estadoPaso(pasos[o], hoy))
-  const ajustadas = PASOS.map(o => pasos[o]).filter(a => a && a.fecha_origen === 'ajustada')
-  const fechas = PASOS.map(o => pasos[o]?.fecha_programada).filter(Boolean).sort()
-  const ultima = fechas[fechas.length - 1]
-  const tarde = uo.fecha_entrega_programada && ultima && ultima > uo.fecha_entrega_programada
-  const color = estados.includes('atrasada') ? 'var(--red)' : estados.every(e => e === 'hecha') ? 'var(--green)' : 'var(--orange)'
+  const { estados, ajustadas, ultima, tarde, tono } = resumenTarjeta(uo, pasos, hoy)
+  const color = `var(--${tono})`
   return (
     <div onClick={onAbrir}
       style={{ gridColumn:`${it.ini + 2} / ${it.fin + 3}`, gridRow:it.carril + 1, position:'relative', zIndex:1, minWidth:0, margin:'4px 6px', cursor:'pointer',
@@ -590,8 +598,71 @@ export default function PlanSemanal() {
 
   // Secciones que se muestran solo si sus consultas respondieron
   const okPlan = datos && datos.integrantes && datos.carga && datos.capacidad && datos.inhabiles && datos.actividades && datos.uos
-  const esCoordinador = profile?.rol === 'coordinador'
   const okCarga = datos && datos.integrantes && datos.carga && datos.capacidad && datos.inhabiles && datos.uos
+  const esCoordinador = profile?.rol === 'coordinador'
+
+  function descargarPDF() {
+    if (!m) return
+    generarPDFPlanSemanal({
+      semana: textoSemana(lunes),
+      lunes,
+      dias: m.dias.map((f, i) => ({ etiqueta: `${DIAS[i]} ${ddmm(f)}`, nota: m.etiquetaDia[f], esHoy: f === hoy })),
+      kpis: okPlan ? [
+        { label: 'ACTIVIDADES HECHAS', val: `${m.kpis.hechas} / ${m.kpis.planeadas}`, sub: 'Planeadas en la semana', tono: 'green' },
+        { label: 'PENDIENTES DE HOY', val: String(m.kpis.pendientesHoy), sub: 'Vencen el ' + ddmm(hoy), tono: 'orange' },
+        { label: 'ATRASADAS', val: String(m.kpis.atrasadas), sub: 'De cualquier semana', tono: m.kpis.atrasadas > 0 ? 'red' : 'dark' },
+        { label: 'JORNADAS PLANEADAS', val: `${fmt(m.kpis.jornadas)} / ${fmt(m.kpis.capacidad)}`, sub: 'Contra la capacidad de la semana', tono: 'blue' },
+      ] : null,
+      plan: okPlan ? m.filasPlan.map(f => ({
+        nombre: f.persona.nombre,
+        carriles: f.carriles,
+        hechas: f.hechas, planeadas: f.planeadas, atrasadas: f.atrasadas,
+        items: f.items.map(it => {
+          const uo = m.uoPorId[it.uoId]
+          const base = { tipo: it.tipo, ini: it.ini, fin: it.fin, carril: it.carril, referencia: uo.referencia_operativa }
+          if (it.tipo !== 'uo') return { ...base, nombre: it.act.nombre }
+          const r = resumenTarjeta(uo, m.pasosPorUo[it.uoId] || {}, hoy)
+          return {
+            ...base,
+            km: uo.km_teoricos ? fmt(uo.km_teoricos) + ' km' : '--- km',
+            nombre: uo.nombre,
+            estados: r.estados,
+            ajustada: r.ajustadas.length > 0,
+            entrega: r.tarde ? 'ENTREGA ' + ddmm(uo.fecha_entrega_programada) : null,
+            tono: r.tono,
+          }
+        }),
+      })) : null,
+      atrasos: okPlan ? m.atrasos.map(a => ({
+        persona: a.persona?.nombre ?? '---',
+        referencia: a.uo?.referencia_operativa ?? '',
+        proyecto: a.uo?.nombre ?? '',
+        actividad: a.nombre,
+        fecha: ddmm(a.fecha_programada),
+        dias: String(diasEntre(a.fecha_programada, hoy)),
+      })) : null,
+      carga: okCarga ? m.filasCarga.map(f => ({
+        nombre: f.persona.nombre,
+        celdas: f.celdas.map(c => {
+          const e = estadoCarga(c.j, c.cap)
+          return { texto: `${fmt(c.j)} / ${fmt(c.cap)}`, j: c.j, cap: c.cap, estado: e.txt, tono: e.tono, refs: c.refs }
+        }),
+        total: {
+          texto: `${fmt(f.j)} / ${fmt(f.cap)}`, j: f.j, cap: f.cap, tono: estadoCarga(f.j, f.cap).tono,
+          libre: 'Libre ' + fmt(f.libre),
+          sobrecarga: f.sobrecarga > EPS ? 'Sobrecarga +' + fmt(f.sobrecarga) : null,
+        },
+      })) : null,
+      dondeAsignar: okCarga && m.dondeAsignar ? m.dondeAsignar.map(d => ({
+        nombre: d.persona.nombre,
+        resumen: `Libre ${fmt(d.libre)} · caben ${d.caben} UO${d.caben === 1 ? '' : 's'} cortas`,
+        dias: d.diasLibres.length > 0
+          ? d.diasLibres.map(x => `${DIAS[m.dias.indexOf(x.fecha)]} ${fmt(x.libre)}`).join(' · ')
+          : 'Sin espacio libre esta semana',
+        tieneLibre: d.libre > EPS,
+      })) : null,
+    })
+  }
 
   return (
     <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:'16px' }}>
@@ -614,6 +685,10 @@ export default function PlanSemanal() {
           <button onClick={() => setLunes(l => sumarDias(l, 7))}
             style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid var(--border2)', background:'none', color:'var(--muted2)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer' }}>
             SEMANA SIGUIENTE →
+          </button>
+          <button onClick={descargarPDF} disabled={loading || !m}
+            style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid var(--border2)', background:'none', color:'var(--muted2)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer', opacity: loading || !m ? 0.4 : 1 }}>
+            DESCARGAR PDF
           </button>
           <div style={{ display:'flex', background:'var(--surface2)', borderRadius:'6px', padding:'2px', gap:'1px' }}>
             {VISTAS.map(v => (
