@@ -12,6 +12,7 @@ import Checklist from './pages/Checklist'
 import Alertas from './pages/Alertas'
 import Calidad from './pages/Calidad'
 import ReporteKM from './pages/ReporteKM'
+import PlanSemanal from './pages/PlanSemanal'
 
 function ProtectedLayout() {
   const { user, loading, passwordRecovery } = useAuth()
@@ -33,6 +34,7 @@ function ProtectedLayout() {
           <Route path="/alertas" element={<Alertas />} />
           <Route path="/calidad" element={<Calidad />} />
           <Route path="/reportes" element={<ReporteKM />} />
+          <Route path="/plan-semanal" element={<PlanSemanal />} />
           <Route path="/reporte-km" element={<Navigate to="/reportes" replace />} />
         </Routes>
       </main>

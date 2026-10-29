@@ -757,3 +757,382 @@ export function generarPDFEvaluacion({ persona, ev, desde, hasta }) {
 
   doc.save(`Evaluacion_${persona.nombre.replace(/\s+/g,'_')}_${desde}_${hasta}.pdf`)
 }
+
+// Plan semanal (carta horizontal). Recibe los datos ya calculados por
+// PlanSemanal.jsx (mismas cifras que la pantalla); aquí solo se dibuja.
+export function generarPDFPlanSemanal({ semana, lunes, dias, kpis, plan, atrasos, carga, dondeAsignar }) {
+  const doc = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'landscape' })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 36
+  const contentWidth = pageWidth - margin * 2
+  const bottom = pageHeight - 34
+  const VIOLET = [139, 92, 246]
+  const TONOS = { green: COLORS.green, orange: COLORS.orange, red: COLORS.red, blue: COLORS.blue, muted: COLORS.gray, dark: COLORS.dark }
+  let y = 40
+
+  function setColor(rgb) { doc.setTextColor(rgb[0], rgb[1], rgb[2]) }
+  function setFill(rgb) { doc.setFillColor(rgb[0], rgb[1], rgb[2]) }
+  function setDraw(rgb) { doc.setDrawColor(rgb[0], rgb[1], rgb[2]) }
+  // Las fuentes estándar de jsPDF solo cubren Latin-1
+  function limpiar(t) { return String(t ?? '').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/[^\x20-\xFF]/g, '') }
+  function texto(t, x, yy, opts) { doc.text(limpiar(t), x, yy, opts) }
+  function recortar(t, maxW) {
+    let s = limpiar(t)
+    if (doc.getTextWidth(s) <= maxW) return s
+    while (s.length > 0 && doc.getTextWidth(s + '...') > maxW) s = s.slice(0, -1)
+    return s + '...'
+  }
+  function fuente(estilo, tam, rgb) { doc.setFont('helvetica', estilo); doc.setFontSize(tam); setColor(rgb) }
+
+  function encabezado() {
+    y = 40
+    setFill(COLORS.dark)
+    doc.circle(margin + 10, y, 10, 'F')
+    fuente('bold', 13, COLORS.dark)
+    doc.text('C3NTRO TELECOM', margin + 28, y - 2)
+    fuente('normal', 8, COLORS.gray)
+    doc.text('GIS Operations', margin + 28, y + 9)
+    fuente('bold', 11, COLORS.dark)
+    doc.text('Plan semanal', pageWidth - margin, y - 2, { align: 'right' })
+    fuente('normal', 8, COLORS.gray)
+    texto(semana, pageWidth - margin, y + 9, { align: 'right' })
+    y += 24
+    setDraw(COLORS.border)
+    doc.setLineWidth(0.5)
+    doc.line(margin, y, pageWidth - margin, y)
+    y += 16
+  }
+  function nuevaPagina() { doc.addPage(); encabezado() }
+  function asegurar(alto, alSaltar) {
+    if (y + alto > bottom) { nuevaPagina(); if (alSaltar) alSaltar() }
+  }
+  function titulo(t) {
+    asegurar(30)
+    fuente('bold', 8, COLORS.dark)
+    texto(t, margin, y)
+    y += 8
+  }
+  function barra(x, yy, w, valor, total, rgb) {
+    setFill(COLORS.border)
+    doc.rect(x, yy, w, 3, 'F')
+    const pct = total > 0 ? Math.min(1, valor / total) : (valor > 0 ? 1 : 0)
+    if (pct > 0) { setFill(rgb); doc.rect(x, yy, w * pct, 3, 'F') }
+  }
+
+  // Columnas de las tablas por integrante: persona, LUN a VIE, semana
+  const colPersona = 96, colSemana = 82
+  const colDia = (contentWidth - colPersona - colSemana) / 5
+  const xDia = i => margin + colPersona + i * colDia
+  const xSemana = margin + colPersona + 5 * colDia
+
+  function encabezadoTabla() {
+    setFill(COLORS.lightGray)
+    doc.rect(margin, y, contentWidth, 24, 'F')
+    fuente('bold', 6.5, COLORS.gray)
+    doc.text('INTEGRANTE', margin + 6, y + 10)
+    dias.forEach((d, i) => {
+      fuente('bold', 6.5, d.esHoy ? COLORS.orange : COLORS.gray)
+      texto(d.etiqueta + (d.esHoy ? '  HOY' : ''), xDia(i) + 6, y + 10)
+      if (d.nota) { fuente('normal', 6, COLORS.gray); texto(d.nota, xDia(i) + 6, y + 19) }
+    })
+    fuente('bold', 6.5, COLORS.gray)
+    doc.text('SEMANA', xSemana + 6, y + 10)
+    y += 24
+  }
+  function lineasFila(alto) {
+    setDraw(COLORS.border)
+    doc.setLineWidth(0.5)
+    for (let i = 0; i < 5; i++) doc.line(xDia(i), y, xDia(i), y + alto)
+    doc.line(xSemana, y, xSemana, y + alto)
+    doc.line(margin, y + alto, pageWidth - margin, y + alto)
+  }
+  function nombrePersona(nombre) {
+    fuente('bold', 7, COLORS.dark)
+    doc.text(doc.splitTextToSize(limpiar(nombre), colPersona - 12).slice(0, 3), margin + 6, y + 11)
+  }
+
+  // ── Página 1: KPIs, plan, leyenda y atrasos ──────────────────────────────
+  encabezado()
+  const fechaGen = new Date().toLocaleString('es-MX', {
+    timeZone: 'America/Mexico_City', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+  fuente('normal', 7, COLORS.gray)
+  texto(`Generado el ${fechaGen} (hora de Mexico)`, margin, y)
+  y += 12
+
+  if (kpis) {
+    const w = (contentWidth - (kpis.length - 1) * 8) / kpis.length
+    kpis.forEach((k, i) => {
+      const x = margin + i * (w + 8)
+      setFill(COLORS.lightGray)
+      doc.roundedRect(x, y, w, 44, 4, 4, 'F')
+      fuente('normal', 6.5, COLORS.gray)
+      doc.text(k.label, x + 8, y + 12)
+      fuente('bold', 14, TONOS[k.tono] || COLORS.dark)
+      texto(k.val, x + 8, y + 29)
+      fuente('normal', 6, COLORS.gray)
+      texto(k.sub, x + 8, y + 39)
+    })
+    y += 56
+  }
+
+  const CARD_H = 30, GAP = 3, MAX_CARRILES = 4
+
+  function tarjeta(it, x, w, cy) {
+    if (it.tipo !== 'uo') {
+      setDraw(COLORS.gray)
+      doc.setLineWidth(0.6)
+      doc.setLineDashPattern([2, 2], 0)
+      doc.roundedRect(x, cy, w, CARD_H, 2, 2, 'S')
+      doc.setLineDashPattern([], 0)
+      fuente('bold', 6.5, COLORS.gray)
+      texto(recortar(it.referencia, w - 8), x + 4, cy + 9)
+      fuente('normal', 6.5, COLORS.gray)
+      texto(recortar(it.nombre, w - 8), x + 4, cy + 18)
+      return
+    }
+    setFill([252, 252, 252])
+    setDraw(COLORS.border)
+    doc.setLineWidth(0.5)
+    doc.roundedRect(x, cy, w, CARD_H, 2, 2, 'FD')
+    setFill(TONOS[it.tono] || COLORS.orange)
+    doc.rect(x, cy, 2, CARD_H, 'F')
+
+    fuente('bold', 6.5, COLORS.orange)
+    const ref = recortar(it.referencia, w - 40)
+    const anchoRef = doc.getTextWidth(ref)  // medir con la fuente de la referencia
+    doc.text(ref, x + 5, cy + 8)
+    fuente('normal', 6, COLORS.gray)
+    doc.text(limpiar(it.km), x + 5 + anchoRef + 4, cy + 8)
+
+    fuente('normal', 6.5, COLORS.dark)
+    doc.text(recortar(it.nombre, w - 9), x + 5, cy + 17)
+
+    // 4 cuadritos: hecha (palomita), atrasada (!), pendiente (vacío)
+    const s = 7, sy = cy + 20
+    it.estados.forEach((e, i) => {
+      const sx = x + 5 + i * (s + 2)
+      doc.setLineWidth(0.5)
+      if (e === 'hecha') {
+        setFill([220, 252, 231]); setDraw(COLORS.green)
+        doc.rect(sx, sy, s, s, 'FD')
+        doc.setLineWidth(0.9)
+        doc.line(sx + 1.5, sy + 3.8, sx + 3, sy + 5.3)
+        doc.line(sx + 3, sy + 5.3, sx + 5.7, sy + 1.8)
+      } else if (e === 'atrasada') {
+        setFill([254, 226, 226]); setDraw(COLORS.red)
+        doc.rect(sx, sy, s, s, 'FD')
+        fuente('bold', 6, COLORS.red)
+        doc.text('!', sx + s / 2, sy + 5.6, { align: 'center' })
+      } else {
+        setDraw(COLORS.border)
+        doc.rect(sx, sy, s, s, 'S')
+      }
+    })
+    let xr = x + 5 + 4 * (s + 2) + 2
+    if (it.ajustada) {
+      fuente('bold', 6, VIOLET)
+      doc.text('aj', xr, sy + 5.6)
+      xr += doc.getTextWidth('aj') + 4
+    }
+    if (it.entrega) {
+      fuente('bold', 5.5, COLORS.red)
+      doc.text(recortar(it.entrega, x + w - 3 - xr), x + w - 3, sy + 5.6, { align: 'right' })
+    }
+  }
+
+  if (!plan && !carga) {
+    fuente('normal', 8, COLORS.gray)
+    doc.text('No se pudieron leer los datos del plan para esta semana.', margin, y + 6)
+  }
+
+  if (plan) {
+    titulo('PLAN DE ACTIVIDADES')
+    asegurar(24 + CARD_H + 10)
+    encabezadoTabla()
+    if (plan.length === 0) {
+      fuente('normal', 7, COLORS.gray)
+      doc.text('Sin integrantes activos en plan_integrantes.', margin + 6, y + 12)
+      y += 20
+    }
+    for (const fila of plan) {
+      // Carriles según las tarjetas mismas (no depende de que fila.carriles venga bien)
+      const usados = Math.max(fila.carriles || 1, ...fila.items.map(it => it.carril + 1))
+      const carriles = Math.max(1, Math.min(usados, MAX_CARRILES))
+      const ocultos = [0, 1, 2, 3, 4].map(i =>
+        fila.items.filter(it => it.carril >= MAX_CARRILES && it.ini <= i && i <= it.fin).length)
+      const hayMas = ocultos.some(n => n > 0)
+      const alto = Math.max(carriles * (CARD_H + GAP) + GAP + (hayMas ? 9 : 0), 40)
+      asegurar(alto, encabezadoTabla)
+      lineasFila(alto)
+      nombrePersona(fila.nombre)
+
+      for (const it of fila.items) {
+        if (it.carril >= MAX_CARRILES) continue
+        tarjeta(it, xDia(it.ini) + 3, (it.fin - it.ini + 1) * colDia - 6, y + GAP + it.carril * (CARD_H + GAP))
+      }
+      ocultos.forEach((n, i) => {
+        if (n > 0) { fuente('bold', 6, COLORS.gray); doc.text(`+${n} mas`, xDia(i) + 5, y + alto - 3) }
+      })
+
+      fuente('bold', 10, COLORS.dark)
+      doc.text(`${fila.hechas} / ${fila.planeadas}`, xSemana + 6, y + 13)
+      barra(xSemana + 6, y + 18, colSemana - 14, fila.hechas, fila.planeadas, COLORS.green)
+      fuente('normal', 6.5, fila.atrasadas > 0 ? COLORS.red : COLORS.gray)
+      doc.text(`${fila.atrasadas} atrasada${fila.atrasadas === 1 ? '' : 's'}`, xSemana + 6, y + 30)
+      y += alto
+    }
+    y += 10
+
+    // Leyenda
+    asegurar(16)
+    fuente('normal', 6.5, COLORS.gray)
+    let xl = margin
+    const muestra = (estado, etiqueta) => {
+      const s = 7
+      doc.setLineWidth(0.5)
+      if (estado === 'hecha') {
+        setFill([220, 252, 231]); setDraw(COLORS.green); doc.rect(xl, y - 6, s, s, 'FD')
+        doc.setLineWidth(0.9); doc.line(xl + 1.5, y - 2.2, xl + 3, y - 0.7); doc.line(xl + 3, y - 0.7, xl + 5.7, y - 4.2)
+      } else if (estado === 'atrasada') {
+        setFill([254, 226, 226]); setDraw(COLORS.red); doc.rect(xl, y - 6, s, s, 'FD')
+        fuente('bold', 6, COLORS.red); doc.text('!', xl + s / 2, y - 0.4, { align: 'center' })
+      } else {
+        setDraw(COLORS.border); doc.rect(xl, y - 6, s, s, 'S')
+      }
+      fuente('normal', 6.5, COLORS.gray)
+      doc.text(etiqueta, xl + s + 4, y)
+      xl += s + 4 + doc.getTextWidth(etiqueta) + 14
+    }
+    fuente('bold', 6.5, COLORS.dark)
+    doc.text('LEYENDA', xl, y)
+    xl += doc.getTextWidth('LEYENDA') + 10
+    muestra('hecha', 'Hecha')
+    muestra('atrasada', 'Atrasada')
+    muestra('pendiente', 'Pendiente')
+    const notas = [
+      'Cuadritos en orden: insumos, preparacion (Vertex), carga en Vetro, pulido en Vetro',
+      'aj = fecha ajustada a mano',
+      'ENTREGA dd/mm = la ultima actividad cae despues de la entrega programada',
+      'Punteada = validacion',
+    ]
+    fuente('normal', 6.5, COLORS.gray)
+    for (const n of notas) {
+      const w = doc.getTextWidth(n)
+      if (xl + w > pageWidth - margin) { y += 10; xl = margin }
+      if (n.startsWith('aj')) { fuente('bold', 6.5, VIOLET); doc.text('aj', xl, y); fuente('normal', 6.5, COLORS.gray); doc.text(n.slice(2), xl + doc.getTextWidth('aj'), y) }
+      else doc.text(n, xl, y)
+      xl += w + 14
+    }
+    y += 18
+  }
+
+  if (atrasos) {
+    const cols = [
+      { t: 'PERSONA', w: 110, k: 'persona' },
+      { t: 'UO', w: 80, k: 'referencia' },
+      { t: 'PROYECTO', w: 200, k: 'proyecto' },
+      { t: 'ACTIVIDAD', w: 165, k: 'actividad' },
+      { t: 'FECHA PROGRAMADA', w: 90, k: 'fecha' },
+      { t: 'DIAS DE ATRASO', w: contentWidth - 645, k: 'dias' },
+    ]
+    const encabezadoAtrasos = () => {
+      setFill(COLORS.lightGray)
+      doc.rect(margin, y, contentWidth, 16, 'F')
+      fuente('bold', 6.5, COLORS.gray)
+      let x = margin
+      for (const c of cols) { doc.text(c.t, x + 6, y + 10.5); x += c.w }
+      y += 16
+    }
+    titulo(`ATRASOS A REVISAR · ${atrasos.length}`)
+    asegurar(16 + 14)
+    encabezadoAtrasos()
+    if (atrasos.length === 0) {
+      fuente('normal', 7, COLORS.gray)
+      doc.text('Sin atrasos.', margin + 6, y + 10)
+      y += 16
+    }
+    for (const a of atrasos) {
+      asegurar(14, encabezadoAtrasos)
+      let x = margin
+      for (const c of cols) {
+        if (c.k === 'referencia') fuente('bold', 7, COLORS.orange)
+        else if (c.k === 'dias') fuente('bold', 7, COLORS.red)
+        else fuente('normal', 7, COLORS.dark)
+        doc.text(recortar(a[c.k], c.w - 10), x + 6, y + 9.5)
+        x += c.w
+      }
+      setDraw(COLORS.border)
+      doc.setLineWidth(0.5)
+      doc.line(margin, y + 14, pageWidth - margin, y + 14)
+      y += 14
+    }
+  }
+
+  // ── Página 2: carga de trabajo ───────────────────────────────────────────
+  if (carga) {
+    nuevaPagina()
+    titulo('CARGA DE TRABAJO (JORNADAS CONTRA CAPACIDAD)')
+    encabezadoTabla()
+    if (carga.length === 0) {
+      fuente('normal', 7, COLORS.gray)
+      doc.text('Sin integrantes activos en plan_integrantes.', margin + 6, y + 12)
+      y += 20
+    }
+    const ALTO = 46
+    for (const fila of carga) {
+      asegurar(ALTO, encabezadoTabla)
+      lineasFila(ALTO)
+      nombrePersona(fila.nombre)
+      fila.celdas.forEach((c, i) => {
+        const x = xDia(i) + 6, w = colDia - 12
+        fuente('bold', 8, COLORS.dark)
+        texto(c.texto, x, y + 11)
+        barra(x, y + 15, w, c.j, c.cap, TONOS[c.tono] || COLORS.gray)
+        fuente('bold', 6.5, TONOS[c.tono] || COLORS.gray)
+        texto(c.estado, x, y + 26)
+        if (c.refs.length > 0) {
+          fuente('normal', 5.5, COLORS.orange)
+          doc.text(doc.splitTextToSize(limpiar(c.refs.join(' · ')), w).slice(0, 2), x, y + 34)
+        }
+      })
+      const t = fila.total
+      fuente('bold', 8, COLORS.dark)
+      texto(t.texto, xSemana + 6, y + 11)
+      barra(xSemana + 6, y + 15, colSemana - 14, t.j, t.cap, TONOS[t.tono] || COLORS.gray)
+      fuente('bold', 6.5, COLORS.green)
+      texto(t.libre, xSemana + 6, y + 26)
+      if (t.sobrecarga) { fuente('bold', 6.5, COLORS.red); texto(t.sobrecarga, xSemana + 6, y + 35) }
+      y += ALTO
+    }
+    y += 14
+
+    if (dondeAsignar) {
+      titulo('DONDE ASIGNAR MAS TRABAJO')
+      y += 2
+      for (const d of dondeAsignar) {
+        asegurar(18)
+        setFill(COLORS.lightGray)
+        doc.roundedRect(margin, y, contentWidth, 16, 3, 3, 'F')
+        fuente('bold', 7, COLORS.dark)
+        texto(recortar(d.nombre, 150), margin + 8, y + 10.5)
+        fuente('bold', 7, d.tieneLibre ? COLORS.green : COLORS.gray)
+        texto(d.resumen, margin + 170, y + 10.5)
+        fuente('normal', 6.5, COLORS.gray)
+        texto(recortar(d.dias, contentWidth - 360), margin + 350, y + 10.5)
+        y += 19
+      }
+    }
+  }
+
+  // Pie en todas las páginas
+  const total = doc.getNumberOfPages()
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i)
+    fuente('normal', 6.5, COLORS.gray)
+    texto(`Plan semanal · ${semana} · Generado el ${fechaGen} · Pagina ${i} de ${total}`, pageWidth / 2, pageHeight - 18, { align: 'center' })
+  }
+
+  doc.save(`Plan_semanal_${lunes}.pdf`)
+}

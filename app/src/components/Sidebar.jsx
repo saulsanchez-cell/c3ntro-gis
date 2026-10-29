@@ -11,6 +11,7 @@ const ICONS = {
   alertas: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>,
   equipo: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17.5" cy="8.5" r="2.6"/><path d="M15 14.5c2.6.4 4.5 2.3 4.5 5.5"/></svg>,
   reportes: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 19V5a2 2 0 012-2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><path d="M9 13h6M9 17h6M9 9h2"/></svg>,
+  planSemanal: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="16" rx="1.5"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>,
 }
 
 export default function Sidebar({ open, onClose }) {
@@ -73,6 +74,7 @@ export default function Sidebar({ open, onClose }) {
       label: 'Gestión',
       items: [
         { label: 'Equipo', path: '/equipo', icon: 'equipo', soloCoordinador: true },
+        { label: 'Plan semanal', path: '/plan-semanal', icon: 'planSemanal', soloCoordinador: true },
       ],
     },
   ]
