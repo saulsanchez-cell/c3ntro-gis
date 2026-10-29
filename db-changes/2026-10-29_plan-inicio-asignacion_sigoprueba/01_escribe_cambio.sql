@@ -1,9 +1,9 @@
 -- Que hace: agrega unidades_operativas.fecha_no_antes_de (date, acepta nulos, sin default) y hace que proponer_fechas_uo empiece en greatest(coalesce(p_inicio, plan_hoy()), fecha_no_antes_de); escribe y hace commit.
 -- Proyecto: SIGOprueba (iadojhaibxpnirzijivf). Reversa: db-changes/2026-10-29_plan-inicio-asignacion_reversa.sql (antes, revertir el frontend).
 -- Resultado esperado: sin filas y sin error. Si aborta porque la columna ya existe o porque proponer_fechas_uo no es la medida, no queda nada escrito: mandar el mensaje completo.
--- Estado: APLICADO EN SIGOPRUEBA, PENDIENTE EN PRODUCCIÓN
+-- Estado: APLICADO EN SIGOPRUEBA Y PRODUCCIÓN
 -- Aplicado en SIGOprueba (iadojhaibxpnirzijivf): 2026-10-29
--- Aplicado en producción (rtwjwfpaturmbmegwtys): PENDIENTE
+-- Aplicado en producción (rtwjwfpaturmbmegwtys): 2026-10-29
 
 begin;
 

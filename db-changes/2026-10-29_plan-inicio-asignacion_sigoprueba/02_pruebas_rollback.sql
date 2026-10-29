@@ -1,10 +1,11 @@
 -- Que hace: pruebas de fecha_no_antes_de (19) dentro de begin ... rollback, con fechas fijas en 2031, perfiles ficticios y SET LOCAL ROLE + request.jwt.claims para asignar como coordinador; no deja datos.
 -- Proyecto: SIGOprueba (iadojhaibxpnirzijivf). Solo despues de 01. Despues correr tambien db-changes/2026-10-26_plan-semanal_pruebas.sql (las 52) como regresion.
 -- Resultado esperado: 1 fila "OK: todas las pruebas pasaron (19)...". Si una falla, el script se detiene con "FALLO <n> ..." y no queda nada: mandar el mensaje completo.
--- Estado: APLICADO EN SIGOPRUEBA, PENDIENTE EN PRODUCCIÓN
+-- Estado: APLICADO EN SIGOPRUEBA Y PRODUCCIÓN
 -- Aplicado en SIGOprueba (iadojhaibxpnirzijivf): 2026-10-29
--- Aplicado en producción (rtwjwfpaturmbmegwtys): PENDIENTE
+-- Aplicado en producción (rtwjwfpaturmbmegwtys): 2026-10-29
 -- Corrido en SIGOprueba el 2026-10-29: OK (19); regresión de las 52: OK
+-- Las pruebas no se corren en producción
 
 begin;
 
