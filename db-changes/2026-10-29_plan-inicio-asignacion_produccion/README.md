@@ -1,4 +1,4 @@
-Aplicado en producción el [FECHA]: pasos 1 a 7 con el resultado esperado; ensayo con la UO 656 (Miguel Angel Sanchez, No empezar antes de 2026-11-03).
+Aplicado en producción el 2026-10-29: pasos 1 a 7 con el resultado esperado; ensayo con la UO 656 (Miguel Angel Sanchez, No empezar antes de 2026-11-03).
 
 # "No empezar antes de": aplicación en PRODUCCIÓN (rtwjwfpaturmbmegwtys)
 
