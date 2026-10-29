@@ -16,7 +16,9 @@ La reconstrucción v2 (Laravel, Vue, MySQL, Entra ID, GitLab) se hace aparte con
 - `app/.env.local` apunta a SIGOprueba. Git lo ignora por la regla `*.local`. No lo leas, no lo imprimas y no pidas claves.
 - Sin ese archivo, `app/src/lib/supabase.js` usa producción. En desarrollo avisa con `console.warn`.
 - Los previews de Vercel usan producción. No hagas pruebas que escriban datos en un preview.
+- Excepción a la regla de los previews: se permite **una** prueba de escritura en un preview, hecha por la persona, a propósito, con una sola UO real de baja importancia, después de aplicar el SQL en producción y antes de fusionar.
 - El frontend no se mergea hasta que el SQL del que depende esté aplicado en producción.
+- Orden obligatorio: SQL primero, frontend después. Para revertir, al revés: primero se revierte el frontend y después se corre la reversa independiente.
 
 ## Cambios de base de datos (`db-changes/`)
 
@@ -41,6 +43,12 @@ Reglas:
 - Los scripts de pruebas terminan en `rollback`. Los de seed o rescate guardan datos y nunca se corren en producción sin revisar.
 - No se escriben en el repo claves ni los UUID de usuarios de Authentication (seed, pruebas): se reemplazan en el editor al correr el script. Excepción documentada: el UUID fijo del coordinador, que ya existe en el código y en las políticas.
 - `schema.sql` en la raíz es un dump local, excluido en `.git/info/exclude`. Puede estar desactualizado y no se sube.
+- Los scripts de `db-changes/` van numerados, uno por corrida, y cada uno dice su resultado esperado. Al correrlos solo se edita un marcador `PEGAR_*` (por ejemplo `PEGAR_REFERENCIA`); nada más.
+
+## Plan semanal
+
+- `unidades_operativas.fecha_no_antes_de` (opcional): se guarda en el mismo UPDATE que la asignación. `proponer_fechas_uo` usa `greatest(coalesce(p_inicio, plan_hoy()), fecha_no_antes_de)`. No se recalcula al reasignar; para mover las fechas después se usa REPROGRAMAR. Aplicado en SIGOprueba y producción el 2026-10-29. Huella de `proponer_fechas_uo` tras el cambio: `77bdbd410611bbd0ab7b03c86dc4ebb3`.
+- `plan_dias_inhabiles`: 7 días de descanso de ley cargados el 2026-10-29 (2026-11-16, 2026-12-25, 2027-01-01, 2027-02-01, 2027-03-15, 2027-09-16, 2027-11-15). Los feriados judíos se cargan cuando llegue el calendario, un archivo por año. Lo ya programado en un día que luego se vuelve inhábil no se mueve solo: se corrige con REPROGRAMAR.
 
 ## Seguridad en la base
 
@@ -76,6 +84,8 @@ Reglas:
 - Flujo: PR, preview, Squash and merge, limpieza de la rama.
 - Usa `git --no-pager` para evitar que la terminal se quede en el paginador.
 - Tras un Squash and merge, `git branch -d` puede negarse aunque el contenido esté en `main`. Compara con `git diff main rama` antes de forzar con `-D`.
+- Nunca borres ramas pegando una lista: una a la vez y escribiendo el nombre. Nunca `main` (está protegida en GitHub).
+- Para decidir si una rama se puede borrar, compárala contra `origin/main` y cuenta solo las líneas únicas de la rama: `git diff origin/main RAMA | grep -c '^+[^+]'`.
 
 ## Cómo trabajar
 
@@ -89,3 +99,9 @@ Reglas:
 - Fase 2 de actividades: validación por ronda e indicador de avance en Backlog y Overview.
 - Rescate de UOs en curso: el script `rescate-opcional` original no se aplica tal cual.
 - Migración a v2 con TI.
+- `fecha_asignacion` se guarda con `toISOString().split('T')[0]` (UTC) y desfasa el día después de las 6 pm.
+- En `guardarAsignacion`, el insert en `historial_estados` va antes del update de la UO.
+- Aviso "sin km" en la tarjeta.
+- Etiqueta de "Pendientes de hoy" en semanas pasadas.
+- Mostrar el motivo del feriado en pantalla y en el PDF.
+- Dos errores previos de `App.jsx`: `ResetPassword` sin importar y un `useState` después de un `return`.
