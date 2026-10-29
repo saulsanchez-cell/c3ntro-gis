@@ -1,9 +1,9 @@
 -- =============================================================================
--- *** APLICADO EN SIGOPRUEBA, PENDIENTE EN PRODUCCIÓN ***
+-- *** APLICADO EN SIGOPRUEBA Y PRODUCCIÓN ***
 -- Plan semanal (fase 1): fechas programadas por actividad y capacidad por día.
 --
 -- Aplicado en SIGOprueba (iadojhaibxpnirzijivf): 2026-10-26
--- Aplicado en producción (rtwjwfpaturmbmegwtys): PENDIENTE
+-- Aplicado en producción (rtwjwfpaturmbmegwtys): 2026-10-29
 --
 -- Requiere: 2026-10-23_actividades-uo.sql aplicado.
 -- Reversa:  2026-10-26_plan-semanal_reversa.sql
