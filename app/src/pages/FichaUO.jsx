@@ -22,6 +22,23 @@ function aInputMexico(fecha) {
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`
 }
 
+// "No empezar antes de": de hoy (Mexico) a hoy + 60 dias, con fechas puras (sin toISOString)
+function rangoNoAntesDe() {
+  const min = aInputMexico(new Date()).slice(0, 10)
+  const [y, m, d] = min.split('-').map(Number)
+  const f = new Date(Date.UTC(y, m - 1, d + 60))
+  const max = `${f.getUTCFullYear()}-${String(f.getUTCMonth() + 1).padStart(2, '0')}-${String(f.getUTCDate()).padStart(2, '0')}`
+  return { min, max }
+}
+
+function errorNoAntesDe(valor) {
+  if (!valor) return ''
+  const { min, max } = rangoNoAntesDe()
+  if (valor < min) return `"No empezar antes de" no puede ser anterior a hoy (${min}).`
+  if (valor > max) return `"No empezar antes de" no puede ser posterior a ${max} (hoy + 60 dias).`
+  return ''
+}
+
 // Valor del input (hora de CDMX, sin horario de verano desde 2022) -> timestamptz con offset fijo
 function conOffsetMexico(valorInput) {
   return valorInput + ':00-06:00'
@@ -71,7 +88,7 @@ export default function FichaUO() {
   const [asignacion, setAsignacion] = useState({
     digitalizador_id: '', analista_qa_id: '', prioridad: 'P3',
     link_archivos: '', observaciones: '', metodo_constructivo: '',
-    latitud: '', longitud: '', fecha_entrega_programada: ''
+    latitud: '', longitud: '', fecha_entrega_programada: '', fecha_no_antes_de: ''
   })
 
   useEffect(() => { fetchAll() }, [id])
@@ -164,6 +181,7 @@ export default function FichaUO() {
         latitud: uoData.latitud || '',
         longitud: uoData.longitud || '',
         fecha_entrega_programada: uoData.fecha_entrega_programada || '',
+        fecha_no_antes_de: uoData.fecha_no_antes_de || '',
       })
     }
     setLoading(false)
@@ -171,6 +189,9 @@ export default function FichaUO() {
 
   async function guardarAsignacion() {
     if (!asignacion.metodo_constructivo) { alert('Selecciona el metodo constructivo antes de guardar.'); return }
+    const errorFecha = asignacion.digitalizador_id && !uo.fecha_asignacion ? errorNoAntesDe(asignacion.fecha_no_antes_de) : ''
+    if (errorFecha) { alert(errorFecha + ' Corrige la fecha o dejala vacia. No se guardo nada.'); return }
+    const fechaSinAsignar = !asignacion.digitalizador_id && !uo.fecha_asignacion && asignacion.fecha_no_antes_de
     setSaving(true)
     const updates = {
       digitalizador_id: asignacion.digitalizador_id || null,
@@ -186,13 +207,16 @@ export default function FichaUO() {
     if (asignacion.digitalizador_id && !uo.fecha_asignacion) {
       updates.fecha_asignacion = new Date().toISOString().split('T')[0]
       updates.estado = 'Asignada'
+      if (asignacion.fecha_no_antes_de) updates.fecha_no_antes_de = asignacion.fecha_no_antes_de
       await supabase.from('historial_estados').insert({
         uo_id: id, usuario_id: profile.id,
         estado_anterior: uo.estado, estado_nuevo: 'Asignada', rol_responsable: 'coordinador'
       })
     }
-    await supabase.from('unidades_operativas').update(updates).eq('id', id)
+    const { error } = await supabase.from('unidades_operativas').update(updates).eq('id', id)
     setSaving(false)
+    if (error) alert('No se pudo guardar la asignacion: ' + error.message)
+    else if (fechaSinAsignar) alert('La fecha solo se usa al asignar. Se guardaron los demas campos; "No empezar antes de" no se guardo.')
     fetchAll()
   }
 
@@ -741,6 +765,21 @@ export default function FichaUO() {
                   <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>FECHA DE ENTREGA PROGRAMADA</div>
                   <input type="date" value={asignacion.fecha_entrega_programada || ''} onChange={e => setAsignacion(a => ({ ...a, fecha_entrega_programada: e.target.value }))} />
                 </div>
+                {!uo.fecha_asignacion ? (
+                  <div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>NO EMPEZAR ANTES DE (opcional)</div>
+                    <input type="date" min={rangoNoAntesDe().min} max={rangoNoAntesDe().max} value={asignacion.fecha_no_antes_de || ''} onChange={e => setAsignacion(a => ({ ...a, fecha_no_antes_de: e.target.value }))} />
+                    {errorNoAntesDe(asignacion.fecha_no_antes_de) && (
+                      <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--red)', marginTop:'4px' }}>{errorNoAntesDe(asignacion.fecha_no_antes_de)} No se guardara.</div>
+                    )}
+                  </div>
+                ) : uo.fecha_no_antes_de ? (
+                  <div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>NO EMPEZAR ANTES DE</div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'11px', color:'var(--text)' }}>{uo.fecha_no_antes_de}</div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginTop:'4px' }}>Para mover fechas usa REPROGRAMAR en Plan semanal</div>
+                  </div>
+                ) : null}
                 <div>
                   <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>LINK DE ARCHIVOS</div>
                   <input value={asignacion.link_archivos || ''} onChange={e => setAsignacion(a => ({ ...a, link_archivos: e.target.value }))} placeholder="https://..." />
