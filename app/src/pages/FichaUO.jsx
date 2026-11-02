@@ -99,7 +99,7 @@ export default function FichaUO() {
     try {
       const { data, error } = await supabase
         .from('actividades_uo')
-        .select('*, responsable:profiles!responsable_id(nombre,iniciales), completada_por_perfil:profiles!completada_por(nombre,iniciales)')
+        .select('*, responsable:profiles!responsable_id(nombre,iniciales), completada_por_perfil:profiles!completada_por(nombre,iniciales), plantilla:plantillas_actividad(momento_creacion)')
         .eq('uo_id', id)
         .order('ronda', { ascending: true })
         .order('orden', { ascending: true })
@@ -191,6 +191,13 @@ export default function FichaUO() {
     if (!asignacion.metodo_constructivo) { alert('Selecciona el metodo constructivo antes de guardar.'); return }
     const errorFecha = asignacion.digitalizador_id && !uo.fecha_asignacion ? errorNoAntesDe(asignacion.fecha_no_antes_de) : ''
     if (errorFecha) { alert(errorFecha + ' Corrige la fecha o dejala vacia. No se guardo nada.'); return }
+    // Nadie se autovalida. Solo si cambia alguno de los dos: hay UOs viejas con la misma persona
+    // y se siguen guardando (la base hace lo mismo con trg_analista_distinto_update).
+    const cambiaEquipo = (asignacion.digitalizador_id || null) !== (uo.digitalizador_id || null)
+      || (asignacion.analista_qa_id || null) !== (uo.analista_qa_id || null)
+    if (cambiaEquipo && asignacion.analista_qa_id && asignacion.analista_qa_id === asignacion.digitalizador_id) {
+      alert('El analista QA no puede ser el mismo digitalizador. No se guardo nada.'); return
+    }
     const fechaSinAsignar = !asignacion.digitalizador_id && !uo.fecha_asignacion && asignacion.fecha_no_antes_de
     setSaving(true)
     const updates = {
@@ -573,7 +580,9 @@ export default function FichaUO() {
               <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
                 {actividades.map(act => {
                   const completada = !!act.completada_en
-                  const puedeModificar = profile?.id === act.responsable_id || profile?.id === COORDINADOR_ACTIVIDADES
+                  // La validación no se marca a mano: la base la completa al pasar la UO a Validada
+                  const esValidacion = act.plantilla?.momento_creacion === 'validacion'
+                  const puedeModificar = !esValidacion && (profile?.id === act.responsable_id || profile?.id === COORDINADOR_ACTIVIDADES)
                   return (
                     <div key={act.id} style={{ background:'var(--surface2)', border:'0.5px solid var(--border2)', borderLeft: '2px solid ' + (completada ? 'var(--green)' : 'var(--border2)'), borderRadius:'6px', padding:'10px 12px', display:'grid', gridTemplateColumns:'1fr auto', gap:'10px', alignItems:'center' }}>
                       <div>
@@ -618,6 +627,9 @@ export default function FichaUO() {
                             </>
                           )}
                         </div>
+                      )}
+                      {esValidacion && !completada && (
+                        <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)' }}>Se completa al validar en el checklist</div>
                       )}
                     </div>
                   )
@@ -752,7 +764,9 @@ export default function FichaUO() {
                   <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>ANALISTA QA</div>
                   <select value={asignacion.analista_qa_id} onChange={e => setAsignacion(a => ({ ...a, analista_qa_id: e.target.value }))}>
                     <option value="">Sin asignar</option>
-                    {equipo.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    {/* Sin el digitalizador elegido, salvo que ya estuviera guardado así (UOs viejas) */}
+                    {equipo.filter(p => p.id !== asignacion.digitalizador_id || p.id === uo.analista_qa_id)
+                      .map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                   </select>
                 </div>
                 <div>
