@@ -1012,7 +1012,7 @@ export function generarPDFPlanSemanal({ semana, lunes, dias, kpis, plan, atrasos
     muestra('atrasada', 'Atrasada')
     muestra('pendiente', 'Pendiente')
     const notas = [
-      'Cuadritos en orden: insumos, preparacion (Vertex), carga en Vetro, pulido en Vetro',
+      'Cuadritos en orden: insumos, preparacion (Vertex), carga en Vetro, ajustes y autorrevision en Vetro',
       'aj = fecha ajustada a mano',
       'ENTREGA dd/mm = la ultima actividad cae despues de la entrega programada',
       'Punteada = validacion',
