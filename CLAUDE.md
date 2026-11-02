@@ -108,7 +108,13 @@ Reglas:
 
 - Políticas por rol y protección de `profiles.rol`.
 - Fase 2 de actividades: validación por ronda e indicador de avance en Backlog y Overview.
-- Rescate de UOs en curso: el script `rescate-opcional` original no se aplica tal cual.
+- Rescate de UOs en curso: el script `rescate-opcional` original no se aplica tal cual. Revisado el 2026-11-02 (`db-changes/2026-11-02_rescate-sin-pasos_produccion/00_lectura_uos-sin-pasos.sql`): hay 15 UOs activas sin pasos, y **por ahora no se planea ninguna**:
+  - Las 8 En Validacion (57, 202, 314–318, 543) tienen la validación pausada por dependencias.
+  - 177 (Asignada), 101, 235, 433 y 8 (En Proceso) están detenidas por dependencias externas. Casi todas tienen la carga completa según su log.
+  - 2025-ZAC-XXX-167 no tiene digitalizador, analista ni método.
+  - 1297.2 ya se validó y liberó.
+  - Razón: el plan reserva las jornadas completas desde hoy (177: 40.58; 433: 75.57) y bloquearía meses a un digitalizador.
+  - Cuando se resuelva la dependencia de una UO, se planea con un script acotado a esa referencia. El coordinador puede pasarlas a Bloqueada mientras tanto.
 - Migración a v2 con TI.
 - `fecha_asignacion` se guarda con `toISOString().split('T')[0]` (UTC) y desfasa el día después de las 6 pm.
 - En `guardarAsignacion`, el insert en `historial_estados` va antes del update de la UO.
