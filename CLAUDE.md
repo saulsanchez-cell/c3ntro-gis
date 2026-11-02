@@ -93,7 +93,7 @@ Reglas:
 - Cada cambio va en una rama nueva desde `main` actualizado: `git checkout main`, `git pull origin main`, `git checkout -b nombre`.
 - Confirma la rama con `git branch` antes de commitear. Agrega los archivos por nombre, nunca con `git add .`.
 - Corre `npm --prefix app run build` y `npm --prefix app run lint:critico` antes de proponer un commit. No hagas commit ni push sin aprobación.
-- GitHub Actions (`.github/workflows/ci.yml`) corre en cada PR la revisión crítica de ESLint (`app/eslint.critico.config.js`) y el build, y los dos bloquean. La revisión completa (`npm run lint`) solo informa hasta que llegue a cero errores. La regla `no-restricted-syntax` prohíbe `toISOString().split`.
+- GitHub Actions (`.github/workflows/ci.yml`) corre en cada PR la revisión crítica de ESLint (`app/eslint.critico.config.js`), el build y la revisión completa (`npm run lint`), y los tres bloquean. ESLint está en 0 errores. Los avisos (`exhaustive-deps` y `set-state-in-effect`, que se dejó como aviso a propósito) no bloquean. Un `eslint-disable` de un plugin nuevo obliga a registrar ese plugin también en la configuración crítica. La regla `no-restricted-syntax` prohíbe `toISOString().split`.
 - Flujo: PR, preview, Squash and merge, limpieza de la rama.
 - Usa `git --no-pager` para evitar que la terminal se quede en el paginador.
 - Tras un Squash and merge, `git branch -d` puede negarse aunque el contenido esté en `main`. Compara con `git diff main rama` antes de forzar con `-D`.

@@ -43,8 +43,6 @@ export default function Backlog() {
   const [vista, setVista] = useState('kanban')
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { fetchUOs() }, [])
-
   async function fetchUOs() {
     let all = []
     let from = 0
@@ -66,6 +64,8 @@ export default function Backlog() {
     setUos(all)
     setLoading(false)
   }
+
+  useEffect(() => { fetchUOs() }, [])
 
   const digitalizadores = useMemo(() => {
     const map = {}

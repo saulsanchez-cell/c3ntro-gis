@@ -62,6 +62,8 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   )
 }
+// useAuth vive junto al provider; la regla solo afecta la recarga rápida en desarrollo
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   return useContext(AuthContext)
 }

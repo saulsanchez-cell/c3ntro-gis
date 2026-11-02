@@ -3,6 +3,7 @@
 // pero solo informa mientras tenga errores previos.
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 import { PROHIBIR_FECHA_UTC } from './eslint.config.js'
 
@@ -10,7 +11,8 @@ export default defineConfig([
   globalIgnores(['dist']),
   {
     files: ['**/*.{js,jsx}'],
-    plugins: { 'react-hooks': reactHooks },
+    // react-refresh se registra sin reglas: algún eslint-disable la menciona
+    plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

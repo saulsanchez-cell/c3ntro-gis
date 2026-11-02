@@ -53,8 +53,6 @@ export default function Calidad() {
   const [erroresPorTipo, setErroresPorTipo] = useState([])
   const [totalRevisiones, setTotalRevisiones] = useState(0)
 
-  useEffect(() => { fetchData() }, [])
-
   async function fetchData() {
     const [{ data: respuestas }, { data: resultados }] = await Promise.all([
       supabase.from('checklist_respuestas')
@@ -126,6 +124,8 @@ export default function Calidad() {
 
     setLoading(false)
   }
+
+  useEffect(() => { fetchData() }, [])
 
   if (loading) return <div style={{ padding:'40px', fontFamily:'var(--mono)', fontSize:'11px', color:'var(--muted2)' }}>Cargando datos de calidad...</div>
 

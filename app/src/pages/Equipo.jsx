@@ -34,8 +34,6 @@ export default function Equipo() {
   const [periodo, setPeriodo] = useState('mes')
   const [rangoPersonalizado, setRangoPersonalizado] = useState({ desde: '', hasta: '' })
 
-  useEffect(() => { fetchData() }, [])
-
   async function fetchData() {
     const [{ data: perfiles }, { data: uosData }, { data: checklistData }] = await Promise.all([
       supabase.from('profiles').select('*').eq('activo', true),
@@ -47,6 +45,8 @@ export default function Equipo() {
     setChecklistResultados(checklistData || [])
     setLoading(false)
   }
+
+  useEffect(() => { fetchData() }, [])
 
   function exportCSV(rows, nombre) {
     if (!rows.length) return

@@ -35,8 +35,6 @@ export default function Checklist() {
   const [noRevision, setNoRevision] = useState(1)
   const [comentariosAnteriores, setComentariosAnteriores] = useState({})
 
-  useEffect(() => { fetchData() }, [id])
-
     async function fetchData() {
     const [{ data: uoData }, { data: itemsData }, { data: catData }, { data: revData }] = await Promise.all([
       supabase.from('unidades_operativas').select('*, digitalizador:profiles!digitalizador_id(nombre), analista_qa:profiles!analista_qa_id(id,nombre,iniciales)').eq('id', id).single(),
@@ -116,6 +114,8 @@ export default function Checklist() {
     }
     setLoading(false)
   }
+
+  useEffect(() => { fetchData() }, [id])
 
   const activas = useMemo(() => {
     if (!uo) return []
