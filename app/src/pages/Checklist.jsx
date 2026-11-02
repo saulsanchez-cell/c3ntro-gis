@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { hoyMexico } from '../lib/fechas'
 
 const SECCIONES_ORDEN = ['General','Aereo','Subterraneo','Expenses','Empalmes','Cable','Drop']
 
@@ -225,7 +226,7 @@ if (itemsSinDescripcion.length > 0) {
 
   async function confirmarEnvio(opcion) {
     setSending(true)
-    const fecha = new Date().toISOString().split('T')[0]
+    const fecha = hoyMexico()
     let estadoNuevo = 'Validada'
     let resolucion = null
     let motivoHist = null

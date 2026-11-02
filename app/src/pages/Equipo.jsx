@@ -2,21 +2,22 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { hoyMexico } from '../lib/fechas'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { generarPDFEvaluacion } from '../lib/certificado'
 
 const ACTIVOS = ['Asignada','En Proceso','En Validacion']
 
+// Periodos con el día de hoy en México (lib/fechas), como texto 'YYYY-MM-DD'
 function inicioMes() {
-  const d = new Date()
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]
+  return hoyMexico().slice(0, 8) + '01'
 }
 function inicioTrimestre() {
-  const d = new Date()
-  const q = Math.floor(d.getMonth() / 3) * 3
-  return new Date(d.getFullYear(), q, 1).toISOString().split('T')[0]
+  const [y, m] = hoyMexico().split('-').map(Number)
+  const q = Math.floor((m - 1) / 3) * 3 + 1
+  return `${y}-${String(q).padStart(2, '0')}-01`
 }
-function hoy() { return new Date().toISOString().split('T')[0] }
+function hoy() { return hoyMexico() }
 
 export default function Equipo() {
   const navigate = useNavigate()
@@ -56,7 +57,7 @@ export default function Equipo() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${nombre}_${new Date().toISOString().split('T')[0]}.csv`
+    a.download = `${nombre}_${hoyMexico()}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
