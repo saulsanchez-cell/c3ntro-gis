@@ -45,10 +45,6 @@ function ProtectedLayout() {
   )
 }
 
-function ComingSoon({ title }) {
-  return <div style={{ padding:"40px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"60vh", gap:"12px" }}><div style={{ fontFamily:"var(--mono)", fontSize:"9px", color:"var(--muted)" }}>PROXIMAMENTE</div><div style={{ fontWeight:"700", fontSize:"24px" }}>{title}</div></div>
-}
-
 function LoginGuard() {
   const { user, loading } = useAuth()
   if (loading) return null

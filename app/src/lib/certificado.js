@@ -12,7 +12,7 @@ const COLORS = {
   border: [220, 220, 220],
 }
 
-export function generarCertificado({ uo, resultado, respuestas, esperaResolucion }) {
+export function generarCertificado({ uo, resultado, respuestas }) {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const pageWidth = doc.internal.pageSize.getWidth()
   const margin = 50

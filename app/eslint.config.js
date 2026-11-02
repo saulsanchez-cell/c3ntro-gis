@@ -26,6 +26,9 @@ export default defineConfig([
     },
     rules: {
       'no-restricted-syntax': PROHIBIR_FECHA_UTC,
+      // Las pantallas cargan sus datos con useEffect(() => { fetchX() }), que llama
+      // setState: la regla lo marca en todas. Queda como aviso, no como error.
+      'react-hooks/set-state-in-effect': 'warn',
     },
   },
 ])

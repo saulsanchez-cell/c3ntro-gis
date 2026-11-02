@@ -125,9 +125,6 @@ export default function Overview() {
   const paraCargar = misUOs.filter(u => u.digitalizador_id === profile.id && (u.estado === 'Asignada' || u.estado === 'En Proceso' || u.estado === 'En Correccion'))
   const paraValidar = misUOs.filter(u => u.analista_qa_id === profile.id && u.estado === 'En Validacion')
 
-  useEffect(() => { fetchData(); fetchComparativas(); fetchActividad() }, [])
-  useEffect(() => { if (profile?.id) fetchMisUOs() }, [profile])
-
   async function fetchMisUOs() {
     const { data } = await supabase
       .from('unidades_operativas')
@@ -215,6 +212,10 @@ export default function Overview() {
 
     setActividad(hist.map(h => ({ ...h, uo: uoMap[h.uo_id], user: userMap[h.usuario_id] })))
   }
+
+  // Debajo de las funciones que llaman (react-hooks/immutability); mismo orden que antes
+  useEffect(() => { fetchData(); fetchComparativas(); fetchActividad() }, [])
+  useEffect(() => { if (profile?.id) fetchMisUOs() }, [profile])
 
   const avance = stats.total > 0 ? ((stats.validadas/stats.total)*100) : 0
   const avanceMesPasadoCalc = (stats.total - (comp.nuevasEsteMes||0)) > 0

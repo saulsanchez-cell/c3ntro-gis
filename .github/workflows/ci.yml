@@ -1,7 +1,6 @@
 # Revisión automática de cada PR contra main.
-#   - Revisión crítica de ESLint y build: si fallan, el PR queda en rojo.
-#   - Revisión completa de ESLint: solo informa mientras haya errores previos
-#     (pendiente A3: dejarla en cero y quitar continue-on-error).
+#   - Revisión crítica de ESLint, build y revisión completa de ESLint: si
+#     alguna falla, el PR queda en rojo. Los avisos (warnings) no lo bloquean.
 # No usa claves ni se conecta a ninguna base: el build no necesita app/.env.local.
 name: CI
 
@@ -37,6 +36,5 @@ jobs:
       - name: Build (bloquea)
         run: npm run build
 
-      - name: ESLint completo (solo informa)
+      - name: ESLint completo (bloquea)
         run: npm run lint
-        continue-on-error: true

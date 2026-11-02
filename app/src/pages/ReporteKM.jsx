@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { hoyMexico } from '../lib/fechas'
 import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts'
-import { jsPDF } from 'jspdf'
 
 const TIPOS_FIJOS = ['Tikva', 'Baseline', 'Active Line']
 const COLOR_PENDIENTE = '#EF4444'
@@ -47,8 +46,6 @@ export default function ReporteKM() {
   useEffect(() => {
     if (profile && profile.rol !== 'coordinador') navigate('/')
   }, [profile])
-
-  useEffect(() => { fetchData() }, [])
 
   function exportCSV(datos, nombre) {
     if (!datos.length) return
@@ -94,6 +91,8 @@ export default function ReporteKM() {
 
     setLoading(false)
   }
+
+  useEffect(() => { fetchData() }, [])
 
   const scorePorUO = useMemo(() => {
     const map = {}
