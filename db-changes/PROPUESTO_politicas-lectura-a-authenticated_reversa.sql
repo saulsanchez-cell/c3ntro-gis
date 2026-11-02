@@ -1,5 +1,8 @@
 -- =============================================================================
 -- *** PROPUESTO, NO APLICADO ***
+-- SUPERADO: NO CORRER. Lo hace el paso 3 de
+-- 2026-11-02_seguridad-anon-y-profiles_sigoprueba/01_escribe_cambio.sql
+-- (y su reversa, 2026-11-02_seguridad-anon-y-profiles_reversa.sql).
 -- REVERSA de PROPUESTO_politicas-lectura-a-authenticated.sql
 -- Regresa las políticas de lectura a TO public.
 -- =============================================================================

@@ -65,15 +65,17 @@ Reglas:
 
 - Toda función `SECURITY DEFINER` lleva `SET search_path = ''`, nombres calificados, `REVOKE ALL` de `public`, `anon` y `authenticated`, y `GRANT EXECUTE` solo a `authenticated` cuando deba llamarse desde la app.
 - Toda tabla nueva lleva RLS, `REVOKE ALL` a `anon` y `public`, y políticas para `authenticated`. Nunca políticas abiertas para `public` con `true`.
-- Después de aplicar, verifica con `has_table_privilege` y `has_function_privilege`.
-- Las políticas de las tablas viejas siguen siendo `USING (true)` para `authenticated`. Se resuelven con políticas por rol, que está pendiente. No las amplíes.
+- Después de aplicar, verifica con `has_table_privilege` y `has_function_privilege`, nunca con `information_schema`: solo muestra lo que ve quien consulta, y así se pasó por alto `anon` hasta el 2026-11-02.
+- Después de cada cambio de SQL, corre la auditoría `db-changes/2026-11-02_seguridad-anon-y-profiles_sigoprueba/03_lectura_auditoria-seguridad.sql` en SIGOprueba y en producción. Solo debe dar filas con `conocido = true`. Cuando se cierre un hallazgo conocido, se quita de su lista en el mismo PR.
+- Desde el 2026-11-02 (SIGOprueba y producción), `anon` no tiene ningún privilegio en las tablas viejas, y `authenticated` no tiene TRUNCATE, REFERENCES ni TRIGGER. Ninguna política es `TO public`.
+- 9 políticas de las tablas viejas siguen siendo de escritura `USING (true)` para `authenticated`. Se resuelven con políticas por rol, que está pendiente. No las amplíes.
+- `profiles`: cualquier sesión lee. Solo `es_coordinador()` puede hacer INSERT, UPDATE o DELETE (políticas `profiles_*`). Los perfiles se administran desde el SQL Editor. La app no escribe en `profiles`.
 - El registro de eventos (`actividades_uo_eventos`) es de solo inserción, y los cambios sensibles siguen el patrón valor anterior, valor nuevo, usuario, motivo y timestamp.
 
 ## Deuda técnica conocida (v2)
 
 - El UUID del coordinador `7063db07-ed16-4ca5-8c98-53b63d128702` está fijo en `proteger_km_teoricos()`, `es_coordinador()`, las políticas de `log_distancia` y `metas_proyecto`, y en el frontend (`USUARIO_AUTORIZADO_DISTANCIA`). En v2 debe ser un permiso guardado en la base.
 - `DELETE` sobre `unidades_operativas` está abierto para cualquier sesión y borra el historial y los eventos por cascada. Riesgo aceptado hasta que existan políticas por rol.
-- Cualquier sesión puede cambiar su propio `rol` en `profiles`. Pendiente.
 
 ## No tocar sin que se pida
 
@@ -108,7 +110,7 @@ Reglas:
 
 ## Pendientes conocidos
 
-- Políticas por rol y protección de `profiles.rol`.
+- Políticas por rol en las 9 tablas viejas con escritura abierta (`profiles.rol` ya está protegido desde el 2026-11-02).
 - Fase 2 de actividades: validación por ronda e indicador de avance en Backlog y Overview.
 - Rescate de UOs en curso: el script `rescate-opcional` original no se aplica tal cual. Revisado el 2026-11-02 (`db-changes/2026-11-02_rescate-sin-pasos_produccion/00_lectura_uos-sin-pasos.sql`): hay 15 UOs activas sin pasos, y **por ahora no se planea ninguna**:
   - Las 8 En Validacion (57, 202, 314–318, 543) tienen la validación pausada por dependencias.
