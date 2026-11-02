@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { hoyMexico } from '../lib/fechas'
 import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts'
 import { jsPDF } from 'jspdf'
 
@@ -58,7 +59,7 @@ export default function ReporteKM() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${nombre}_${new Date().toISOString().split('T')[0]}.csv`
+    a.download = `${nombre}_${hoyMexico()}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -244,7 +245,7 @@ const porAnalista = useMemo(() => {
       pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight)
       heightLeft -= (pageHeight - margin*2)
     }
-    pdf.save(`Reporte_KM_${new Date().toISOString().split('T')[0]}.pdf`)
+    pdf.save(`Reporte_KM_${hoyMexico()}.pdf`)
   }
 
   // ── PDF completo (jsPDF puro, sin DOM) ────────────────────────────────────
@@ -512,7 +513,7 @@ const porAnalista = useMemo(() => {
       y += 20
     }
 
-    pdf.save(`Reporte_KM_Completo_${new Date().toISOString().split('T')[0]}.pdf`)
+    pdf.save(`Reporte_KM_Completo_${hoyMexico()}.pdf`)
   }
 
   if (loading) return <div style={{ padding:'40px', fontFamily:'var(--mono)', fontSize:'11px', color:'var(--muted2)' }}>Cargando reporte...</div>

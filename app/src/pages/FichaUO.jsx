@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { hoyMexico } from '../lib/fechas'
 import { generarCertificado, generarCertificadoConectividad, generarPDFAsignacion, generarBitacoraUO } from '../lib/certificado'
 
 const FASES = ['Preparacion','Carga parcial','Carga completa']
@@ -71,7 +72,7 @@ export default function FichaUO() {
   const [showCierreModal, setShowCierreModal] = useState(false)
   const [cierreData, setCierreData] = useState({
     confirmado: false,
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: hoyMexico(),
     nota: '',
     tipo_validacion: 'checklist_qa',
     referencia_externa: ''
@@ -211,16 +212,20 @@ export default function FichaUO() {
       longitud: asignacion.longitud ? parseFloat(asignacion.longitud) : null,
       fecha_entrega_programada: asignacion.fecha_entrega_programada || null,
     }
-    if (asignacion.digitalizador_id && !uo.fecha_asignacion) {
-      updates.fecha_asignacion = new Date().toISOString().split('T')[0]
+    const asignaAhora = asignacion.digitalizador_id && !uo.fecha_asignacion
+    if (asignaAhora) {
+      updates.fecha_asignacion = hoyMexico()
       updates.estado = 'Asignada'
       if (asignacion.fecha_no_antes_de) updates.fecha_no_antes_de = asignacion.fecha_no_antes_de
+    }
+    const { error } = await supabase.from('unidades_operativas').update(updates).eq('id', id)
+    // El historial solo se escribe si la UO sí cambió
+    if (!error && asignaAhora) {
       await supabase.from('historial_estados').insert({
         uo_id: id, usuario_id: profile.id,
         estado_anterior: uo.estado, estado_nuevo: 'Asignada', rol_responsable: 'coordinador'
       })
     }
-    const { error } = await supabase.from('unidades_operativas').update(updates).eq('id', id)
     setSaving(false)
     if (error) alert('No se pudo guardar la asignacion: ' + error.message)
     else if (fechaSinAsignar) alert('La fecha solo se usa al asignar. Se guardaron los demas campos; "No empezar antes de" no se guardo.')
@@ -237,7 +242,7 @@ export default function FichaUO() {
       setLogError('Agrega un comentario de entrega para el validador (minimo 20 caracteres).'); return
     }
     setSavingLog(true)
-    const hoy = new Date().toISOString().split('T')[0]
+    const hoy = hoyMexico()
     const { error } = await supabase.from('logs_actividad').upsert({
       uo_id: id, usuario_id: profile.id, fecha: hoy,
       porcentaje_avance: logForm.porcentaje_avance, fase: logForm.fase, nota: logForm.nota,
@@ -284,7 +289,11 @@ export default function FichaUO() {
       updates.validado_en = new Date().toISOString()
     }
 
-    await supabase.from('unidades_operativas').update(updates).eq('id', id)
+    const { error } = await supabase.from('unidades_operativas').update(updates).eq('id', id)
+    if (error) {
+      alert('No se pudo cerrar la UO: ' + error.message)
+      return
+    }
     await supabase.from('historial_estados').insert({
       uo_id: id, usuario_id: profile.id,
       estado_anterior: estadoAnterior, estado_nuevo: 'Cerrada',
@@ -296,7 +305,7 @@ export default function FichaUO() {
     })
 
     setShowCierreModal(false)
-    setCierreData({ confirmado: false, fecha: new Date().toISOString().split('T')[0], nota: '', tipo_validacion: 'checklist_qa', referencia_externa: '' })
+    setCierreData({ confirmado: false, fecha: hoyMexico(), nota: '', tipo_validacion: 'checklist_qa', referencia_externa: '' })
     setCambioEstado('')
     fetchAll()
   }
@@ -307,8 +316,9 @@ export default function FichaUO() {
     if (estadoAnterior === 'Cerrada' && nuevoEstado === 'En Proceso') {
       updates.no_revision = (uo.no_revision || 0) + 1
     }
-    await supabase.from('unidades_operativas').update(updates).eq('id', id)
-    await supabase.from('historial_estados').insert({
+    const { error } = await supabase.from('unidades_operativas').update(updates).eq('id', id)
+    if (error) alert('No se pudo cambiar el estado: ' + error.message)
+    else await supabase.from('historial_estados').insert({
       uo_id: id, usuario_id: profile.id, estado_anterior: estadoAnterior, estado_nuevo: nuevoEstado,
       motivo_texto: motivo || null,
       categoria_error: estadoAnterior === 'Cerrada' ? 'Reapertura' : null,
@@ -905,7 +915,7 @@ export default function FichaUO() {
             </div>
 
             <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-              <button onClick={() => { setShowCierreModal(false); setCambioEstado(''); setCierreData({ confirmado: false, fecha: new Date().toISOString().split('T')[0], nota: '', tipo_validacion: 'checklist_qa', referencia_externa: '' }) }}
+              <button onClick={() => { setShowCierreModal(false); setCambioEstado(''); setCierreData({ confirmado: false, fecha: hoyMexico(), nota: '', tipo_validacion: 'checklist_qa', referencia_externa: '' }) }}
                 style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid var(--border)', background:'none', color:'var(--muted2)', fontSize:'10px', fontFamily:'var(--mono)' }}>
                 CANCELAR
               </button>

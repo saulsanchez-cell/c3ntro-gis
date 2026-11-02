@@ -13,12 +13,15 @@ import Alertas from './pages/Alertas'
 import Calidad from './pages/Calidad'
 import ReporteKM from './pages/ReporteKM'
 import PlanSemanal from './pages/PlanSemanal'
+import ResetPassword from './pages/ResetPassword'
 
 function ProtectedLayout() {
   const { user, loading, passwordRecovery } = useAuth()
-  if (passwordRecovery) return <ResetPassword />
+  // Los hooks van antes de cualquier return
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  if (passwordRecovery) return <ResetPassword />
   if (loading) return <div style={{ minHeight:"100vh", background:"var(--bg)", display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ fontFamily:"var(--mono)", fontSize:"11px", color:"var(--muted2)" }}>CARGANDO...</div></div>
+  if (!user) return <Navigate to="/login" replace />
   return (
     <div className="sigo-layout">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />

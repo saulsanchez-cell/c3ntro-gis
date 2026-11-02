@@ -81,10 +81,11 @@ Reglas:
 
 ## Convenciones de código
 
-- Las fechas de negocio se guardan como `timestamptz`. Hora de México con offset fijo `-06:00` (sin horario de verano desde 2022). Nunca uses `toISOString().split('T')[0]`: da el día en UTC y desfasa después de las 6 pm.
+- Las fechas de negocio se guardan como `timestamptz`. Hora de México con offset fijo `-06:00` (sin horario de verano desde 2022). Nunca uses `toISOString().split('T')[0]`: da el día en UTC y desfasa después de las 6 pm. Para el día de hoy usa `hoyMexico()` de `app/src/lib/fechas.js`. Las fechas ya guardadas con el día UTC no se corrigieron.
 - Los estados en la base no llevan acento (`En Validacion`, `En Correccion`) y `estado` es el enum `estado_uo`.
 - Tablas con su nombre real: `log_distancia` (singular) y `catalogo_observaciones_qa`.
 - Las secciones nuevas de la interfaz fallan en silencio si la consulta da error: no rompen la pantalla.
+- El registro en `historial_estados` se escribe solo después de que el UPDATE de la UO salió bien. Si falla, se avisa con un alert.
 - Estilos en línea con las variables del proyecto (`var(--mono)`, etc.) y modales como los existentes.
 
 ## Flujo de git
@@ -116,9 +117,6 @@ Reglas:
   - Razón: el plan reserva las jornadas completas desde hoy (177: 40.58; 433: 75.57) y bloquearía meses a un digitalizador.
   - Cuando se resuelva la dependencia de una UO, se planea con un script acotado a esa referencia. El coordinador puede pasarlas a Bloqueada mientras tanto.
 - Migración a v2 con TI.
-- `fecha_asignacion` se guarda con `toISOString().split('T')[0]` (UTC) y desfasa el día después de las 6 pm.
-- En `guardarAsignacion`, el insert en `historial_estados` va antes del update de la UO.
 - Aviso "sin km" en la tarjeta.
 - Etiqueta de "Pendientes de hoy" en semanas pasadas.
 - Mostrar el motivo del feriado en pantalla y en el PDF.
-- Dos errores previos de `App.jsx`: `ResetPassword` sin importar y un `useState` después de un `return`.
