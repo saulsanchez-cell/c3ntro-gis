@@ -1,0 +1,42 @@
+# Revisión automática de cada PR contra main.
+#   - Revisión crítica de ESLint y build: si fallan, el PR queda en rojo.
+#   - Revisión completa de ESLint: solo informa mientras haya errores previos
+#     (pendiente A3: dejarla en cero y quitar continue-on-error).
+# No usa claves ni se conecta a ninguna base: el build no necesita app/.env.local.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: ESLint critico (bloquea)
+        run: npm run lint:critico
+
+      - name: Build (bloquea)
+        run: npm run build
+
+      - name: ESLint completo (solo informa)
+        run: npm run lint
+        continue-on-error: true
