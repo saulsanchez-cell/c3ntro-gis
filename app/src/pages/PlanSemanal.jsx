@@ -8,6 +8,8 @@ const DIAS = ['LUN', 'MAR', 'MIE', 'JUE', 'VIE']
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
 // Los 4 pasos de asignación, por orden: insumos, preparación (Vertex), carga en Vetro, ajustes y autorrevisión en Vetro
 const PASOS = [1, 2, 3, 4]
+// La validación de calidad (orden 5) del analista QA; su carga va en plan_carga_actividad
+const esValidacion = a => a?.plantilla?.momento_creacion === 'validacion'
 const EPS = 0.005
 const VISTAS = [{ key:'plan', label:'PLAN DE ACTIVIDADES' }, { key:'carga', label:'CARGA DE TRABAJO' }]
 
@@ -148,12 +150,14 @@ function diasHabilesEntre(desde, hasta, cap) {
   return -n
 }
 
-// public.reprogramar_actividad, sin escribir: qué pasos y qué carga se moverían
-function simularReprogramacion(act, fecha, actsUo, cargaUo, cap) {
+// public.reprogramar_actividad, sin escribir: qué pasos y qué carga se moverían.
+// cargaVal: carga de la validación de la UO (plan_carga_actividad), con actividad_id.
+function simularReprogramacion(act, fecha, actsUo, cargaUo, cargaVal, cap) {
   const anterior = act.fecha_programada
   const n = diasHabilesEntre(anterior, fecha, cap)
   const esPrimero = !actsUo.some(a => a.ronda === act.ronda && a.orden < act.orden)
-  const seMueve = c => esPrimero || c.fecha >= anterior
+  // Si se mueve la validación, la carga del digitalizador no se toca
+  const seMueve = c => !esValidacion(act) && (esPrimero || c.fecha >= anterior)
   const destino = f => (f === anterior ? fecha : sumarDiasHabiles(f, n, cap))
 
   // Carga: filas que no se mueven + filas movidas agrupadas por fecha nueva;
@@ -178,7 +182,16 @@ function simularReprogramacion(act, fecha, actsUo, cargaUo, cap) {
     .map(a => ({ ...a, nueva: a.id === act.id ? fecha : sumarDiasHabiles(a.fecha_programada, n, cap) }))
     .filter(a => a.nueva !== a.fecha_programada)
 
-  return { pasos, carga: Object.values(nueva).sort((a, b) => (a.fecha < b.fecha ? -1 : 1)) }
+  // La validación movida (ella misma o arrastrada por un paso) lleva su carga a su fecha nueva
+  const nuevaVal = Object.fromEntries(pasos.filter(esValidacion).map(a => [a.id, a.nueva]))
+  const carga = [
+    ...Object.values(nueva),
+    ...cargaVal.map(c => nuevaVal[c.actividad_id]
+      ? { ...c, fecha: nuevaVal[c.actividad_id], jornadas: Number(c.jornadas), movida: true }
+      : { ...c, jornadas: Number(c.jornadas), movida: false }),
+  ]
+
+  return { pasos, carga: carga.sort((a, b) => (a.fecha < b.fecha ? -1 : 1)) }
 }
 
 const LABEL = { fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'6px' }
@@ -196,24 +209,39 @@ function ModalReprogramar({ uo, actsUo, capacidad, nombres, hoy, actividadInicia
   const [saving, setSaving] = useState(false)
   const [extra, setExtra] = useState(null)  // carga de la UO, días inhábiles y carga de las personas
 
+  const idsValidacion = actsUo.filter(esValidacion).map(a => a.id)
+
   useEffect(() => {
     let actual = true
     ;(async () => {
-      const [cargaUo, inhabiles] = await Promise.all([
+      const [cargaUo, cargaVal, inhabiles] = await Promise.all([
         consultar(supabase.from('plan_carga_uo').select('uo_id,fecha,responsable_id,jornadas').eq('uo_id', uo.id)),
+        idsValidacion.length === 0 ? [] : consultar(supabase.from('plan_carga_actividad')
+          .select('actividad_id,fecha,responsable_id,jornadas').in('actividad_id', idsValidacion)),
         consultar(supabase.from('plan_dias_inhabiles').select('fecha')),
       ])
       let cargaPersonas = null
-      if (cargaUo) {
-        const personas = [...new Set(cargaUo.map(c => c.responsable_id).filter(Boolean))]
-        const desde = [hoy, ...cargaUo.map(c => c.fecha)].sort()[0]
-        cargaPersonas = personas.length === 0 ? [] : await consultar(supabase.from('plan_carga_uo')
-          .select('uo_id,fecha,responsable_id,jornadas').in('responsable_id', personas).gte('fecha', desde))
+      if (cargaUo && cargaVal) {
+        const propias = [...cargaUo, ...cargaVal]
+        const personas = [...new Set(propias.map(c => c.responsable_id).filter(Boolean))]
+        const desde = [hoy, ...propias.map(c => c.fecha)].sort()[0]
+        if (personas.length === 0) cargaPersonas = []
+        else {
+          const [deUos, deActividades] = await Promise.all([
+            consultar(supabase.from('plan_carga_uo')
+              .select('uo_id,fecha,responsable_id,jornadas').in('responsable_id', personas).gte('fecha', desde)),
+            consultar(supabase.from('plan_carga_actividad')
+              .select('fecha,responsable_id,jornadas,actividad:actividades_uo(uo_id)').in('responsable_id', personas).gte('fecha', desde)),
+          ])
+          cargaPersonas = deUos && deActividades
+            ? [...deUos, ...deActividades.map(c => ({ uo_id: c.actividad?.uo_id, fecha: c.fecha, responsable_id: c.responsable_id, jornadas: c.jornadas }))]
+            : null
+        }
       }
-      if (actual) setExtra({ cargaUo, inhabiles: inhabiles ? new Set(inhabiles.map(r => r.fecha)) : null, cargaPersonas })
+      if (actual) setExtra({ cargaUo, cargaVal, inhabiles: inhabiles ? new Set(inhabiles.map(r => r.fecha)) : null, cargaPersonas })
     })()
     return () => { actual = false }
-  }, [uo.id, hoy])
+  }, [uo.id, hoy, idsValidacion.join(',')])
 
   const act = elegibles.find(a => a.id === actividadId)
   const cap = extra?.inhabiles ? f => capacidadDia(f, capacidad, extra.inhabiles) : null
@@ -232,9 +260,9 @@ function ModalReprogramar({ uo, actsUo, capacidad, nombres, hoy, actividadInicia
   }
 
   let vista = null, errorVista = ''
-  if (act && fecha && !aviso && cap && extra.cargaUo) {
+  if (act && fecha && !aviso && cap && extra.cargaUo && extra.cargaVal) {
     try {
-      vista = simularReprogramacion(act, fecha, actsUo, extra.cargaUo, cap)
+      vista = simularReprogramacion(act, fecha, actsUo, extra.cargaUo, extra.cargaVal, cap)
       vista.sobrecargas = extra.cargaPersonas
         ? vista.carga.filter(c => c.movida && c.responsable_id).map(c => {
             const otras = extra.cargaPersonas
@@ -309,7 +337,7 @@ function ModalReprogramar({ uo, actsUo, capacidad, nombres, hoy, actividadInicia
                   </div>
                 ))}
                 {vista.sobrecargas.map(s => (
-                  <div key={s.fecha} style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--orange)' }}>
+                  <div key={s.fecha + (s.responsable_id || '')} style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--orange)' }}>
                     Aviso: {nombres[s.responsable_id] ?? 'el responsable'} quedaria con sobrecarga el {DIAS[diaSemanaIso(s.fecha) - 1] ?? ''} {ddmm(s.fecha)} ({fmt(s.total)} / {fmt(s.capacidad)}). Se puede guardar igual.
                   </div>
                 ))}
@@ -338,22 +366,27 @@ function ModalReprogramar({ uo, actsUo, capacidad, nombres, hoy, actividadInicia
 
 async function cargarSemana(lun, hoy) {
   const vie = sumarDias(lun, 4)
-  const [integrantes, capacidad, inhabiles, carga, parametros, atrasadas, actSemana] = await Promise.all([
+  const [integrantes, capacidad, inhabiles, carga, cargaActividad, parametros, atrasadas, actSemana] = await Promise.all([
     consultar(supabase.from('plan_integrantes').select('profile_id, orden, perfil:profiles(id,nombre,iniciales)').eq('activo', true).order('orden')),
     consultar(supabase.from('plan_capacidad').select('dia_semana,jornadas,etiqueta,vigente_desde,vigente_hasta')),
     consultar(supabase.from('plan_dias_inhabiles').select('fecha,descripcion').gte('fecha', lun).lte('fecha', vie)),
     consultar(supabase.from('plan_carga_uo').select('uo_id,fecha,responsable_id,jornadas').gte('fecha', lun).lte('fecha', vie)),
+    consultar(supabase.from('plan_carga_actividad').select('actividad_id,fecha,responsable_id,jornadas,actividad:actividades_uo(uo_id)').gte('fecha', lun).lte('fecha', vie)),
     consultar(supabase.from('plan_parametros').select('clave,valor,vigente_desde,vigente_hasta').eq('clave', 'jornada_minima_uo')),
     consultar(supabase.from('actividades_uo').select('uo_id').lt('fecha_programada', hoy).is('completada_en', null)),
     consultar(supabase.from('actividades_uo').select('uo_id').gte('fecha_programada', lun).lte('fecha_programada', vie)),
   ])
+  // Carga de la validación con el uo_id de su actividad; null si la consulta falló
+  const cargaVal = cargaActividad
+    ? cargaActividad.filter(c => c.actividad?.uo_id).map(c => ({ ...c, uo_id: c.actividad.uo_id }))
+    : null
 
-  const uoIds = [...new Set([...(carga || []), ...(atrasadas || []), ...(actSemana || [])].map(r => r.uo_id))]
+  const uoIds = [...new Set([...(carga || []), ...(cargaVal || []), ...(atrasadas || []), ...(actSemana || [])].map(r => r.uo_id))]
   let actividades = [], uos = []
   if (uoIds.length > 0) {
     ;[actividades, uos] = await Promise.all([
       consultar(supabase.from('actividades_uo')
-        .select('id,uo_id,nombre,orden,ronda,responsable_id,fecha_programada,fecha_origen,completada_en')
+        .select('id,uo_id,nombre,orden,ronda,responsable_id,fecha_programada,fecha_origen,completada_en,plantilla:plantillas_actividad(momento_creacion)')
         .in('uo_id', uoIds)),
       consultar(supabase.from('unidades_operativas')
         .select('id,referencia_operativa,nombre,km_teoricos,fecha_entrega_programada')
@@ -361,7 +394,7 @@ async function cargarSemana(lun, hoy) {
     ])
   }
 
-  return { lunes: lun, integrantes, capacidad, inhabiles, carga, parametros, actividades, uos }
+  return { lunes: lun, integrantes, capacidad, inhabiles, carga, cargaVal, parametros, actividades, uos }
 }
 
 function Encabezado({ dias, etiquetaDia, hoy }) {
@@ -443,13 +476,35 @@ function TarjetaUo({ it, uo, pasos, hoy, onAbrir, onReprogramar }) {
   )
 }
 
-function TarjetaValidacion({ it, uo, onAbrir }) {
+// Validación de calidad: punteada; se completa sola cuando la UO pasa a Validada
+function TarjetaValidacion({ it, uo, hoy, onAbrir, onReprogramar }) {
+  const e = estadoPaso(it.act, hoy)
+  const color = e === 'hecha' ? 'var(--green)' : e === 'atrasada' ? 'var(--red)' : 'var(--border)'
   return (
-    <div onClick={onAbrir} title={it.act.nombre}
+    <div onClick={onAbrir} title={`${it.act.nombre} · ${ddmm(it.act.fecha_programada)} · se completa al validar en el checklist`}
       style={{ gridColumn:`${it.ini + 2} / ${it.fin + 3}`, gridRow:it.carril + 1, position:'relative', zIndex:1, minWidth:0, margin:'4px 6px', cursor:'pointer',
-        border:'1px dashed var(--border)', borderRadius:'6px', padding:'6px 8px' }}>
-      <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>{uo.referencia_operativa}</div>
-      <div style={{ fontSize:'10px', color:'var(--muted2)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{it.act.nombre}</div>
+        border:'1px dashed ' + color, borderRadius:'6px', padding:'6px 8px' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:'6px', minWidth:0 }}>
+        <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)', flexShrink:0 }}>{uo.referencia_operativa}</span>
+        {e !== 'pendiente' && (
+          <span style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'1px 5px', borderRadius:'3px', flexShrink:0,
+            background: e === 'hecha' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)', color }}>
+            {e === 'hecha' ? 'HECHA' : 'ATRASADA'}
+          </span>
+        )}
+        {it.act.fecha_origen === 'ajustada' && (
+          <span title="Fecha ajustada a mano" style={{ color:'var(--accent-a)', fontSize:'11px', lineHeight:1 }}>✎</span>
+        )}
+      </div>
+      <div style={{ display:'flex', alignItems:'center', gap:'6px', marginTop:'3px' }}>
+        <div style={{ fontSize:'10px', color:'var(--muted2)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', minWidth:0 }}>{it.act.nombre}</div>
+        {onReprogramar && !it.act.completada_en && (
+          <button onClick={ev => { ev.stopPropagation(); onReprogramar() }} title="Reprogramar la validacion"
+            style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'2px 5px', borderRadius:'4px', border:'0.5px solid rgba(139,92,246,0.35)', background:'rgba(139,92,246,0.08)', color:'var(--accent-a)', cursor:'pointer', marginLeft:'auto', flexShrink:0 }}>
+            REPROGRAMAR
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -521,8 +576,9 @@ export default function PlanSemanal() {
     for (const c of (datos.carga || [])) if (uoPorId[c.uo_id]) agregarDia(c.responsable_id, c.uo_id, c.fecha)
     for (const a of actividades) {
       if (PASOS.includes(a.orden)) agregarDia(a.responsable_id, a.uo_id, a.fecha_programada)
-      else agregarDia(a.responsable_id, a.uo_id, a.fecha_programada, 'validacion', a)  // tarjeta punteada
+      else if (esValidacion(a)) agregarDia(a.responsable_id, a.uo_id, a.fecha_programada, 'validacion', a)  // tarjeta punteada
     }
+    const validacionesDe = id => actividades.filter(a => a.responsable_id === id && esValidacion(a) && enSemana(a.fecha_programada))
 
     const filasPlan = integrantes.map(p => {
       const items = Object.values(tramos)
@@ -537,6 +593,7 @@ export default function PlanSemanal() {
         it.carril = c
       }
       const actsSemana = actividades.filter(a => a.responsable_id === p.id && PASOS.includes(a.orden) && enSemana(a.fecha_programada))
+      const vals = validacionesDe(p.id)
       return {
         persona: p,
         items,
@@ -544,15 +601,24 @@ export default function PlanSemanal() {
         planeadas: actsSemana.length,
         hechas: actsSemana.filter(a => a.completada_en).length,
         atrasadas: actsSemana.filter(a => estadoPaso(a, hoy) === 'atrasada').length,
+        valPlaneadas: vals.length,
+        valHechas: vals.filter(a => a.completada_en).length,
       }
     })
 
-    // Vista Carga
+    // Vista Carga: suma la carga de las UOs y la de las validaciones (el analista también digitaliza)
+    const cargaTotal = [
+      ...(datos.carga || []),
+      ...(datos.cargaVal || []).map(c => ({ ...c, validacion: true })),
+    ]
     const filasCarga = integrantes.map(p => {
       const celdas = dias.map(f => {
-        const filas = (datos.carga || []).filter(c => c.responsable_id === p.id && c.fecha === f)
+        const filas = cargaTotal.filter(c => c.responsable_id === p.id && c.fecha === f)
         const j = filas.reduce((s, c) => s + Number(c.jornadas), 0)
-        return { fecha: f, j, cap: capDia[f], refs: filas.map(c => uoPorId[c.uo_id]?.referencia_operativa).filter(Boolean) }
+        const refs = filas
+          .filter(c => uoPorId[c.uo_id])
+          .map(c => uoPorId[c.uo_id].referencia_operativa + (c.validacion ? ' (val)' : ''))
+        return { fecha: f, j, cap: capDia[f], refs }
       })
       const j = celdas.reduce((s, c) => s + c.j, 0)
       const cap = celdas.reduce((s, c) => s + c.cap, 0)
@@ -579,12 +645,16 @@ export default function PlanSemanal() {
       .map(a => ({ ...a, uo: uoPorId[a.uo_id], persona: integrantes.find(p => p.id === a.responsable_id) }))
       .sort((a, b) => (a.fecha_programada < b.fecha_programada ? -1 : 1))
 
+    // KPIs: los pasos del digitalizador y las validaciones van aparte
     const planeadas = filasPlan.reduce((s, f) => s + f.planeadas, 0)
     const kpis = {
       hechas: filasPlan.reduce((s, f) => s + f.hechas, 0),
       planeadas,
       pendientesHoy: actividades.filter(a => ids.has(a.responsable_id) && PASOS.includes(a.orden) && a.fecha_programada === hoy && !a.completada_en).length,
-      atrasadas: atrasos.length,
+      atrasadas: atrasos.filter(a => !esValidacion(a)).length,
+      valHechas: filasPlan.reduce((s, f) => s + f.valHechas, 0),
+      valPlaneadas: filasPlan.reduce((s, f) => s + f.valPlaneadas, 0),
+      valAtrasadas: atrasos.filter(esValidacion).length,
       jornadas: filasCarga.reduce((s, f) => s + f.j, 0),
       capacidad: filasCarga.reduce((s, f) => s + f.cap, 0),
     }
@@ -611,6 +681,9 @@ export default function PlanSemanal() {
         { label: 'ACTIVIDADES HECHAS', val: `${m.kpis.hechas} / ${m.kpis.planeadas}`, sub: 'Planeadas en la semana', tono: 'green' },
         { label: 'PENDIENTES DE HOY', val: String(m.kpis.pendientesHoy), sub: 'Vencen el ' + ddmm(hoy), tono: 'orange' },
         { label: 'ATRASADAS', val: String(m.kpis.atrasadas), sub: 'De cualquier semana', tono: m.kpis.atrasadas > 0 ? 'red' : 'dark' },
+        { label: 'VALIDACIONES', val: `${m.kpis.valHechas} / ${m.kpis.valPlaneadas}`,
+          sub: m.kpis.valAtrasadas > 0 ? `${m.kpis.valAtrasadas} atrasada${m.kpis.valAtrasadas === 1 ? '' : 's'}` : 'Planeadas en la semana',
+          tono: m.kpis.valAtrasadas > 0 ? 'red' : 'blue' },
         { label: 'JORNADAS PLANEADAS', val: `${fmt(m.kpis.jornadas)} / ${fmt(m.kpis.capacidad)}`, sub: 'Contra la capacidad de la semana', tono: 'blue' },
       ] : null,
       plan: okPlan ? m.filasPlan.map(f => ({
@@ -708,10 +781,12 @@ export default function PlanSemanal() {
       ) : (
         <>
           {okPlan && (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'8px' }}>
               <Kpi icon={ICONS.check} label="ACTIVIDADES HECHAS" value={`${m.kpis.hechas} / ${m.kpis.planeadas}`} color="var(--green)" sub="Planeadas en la semana" />
               <Kpi icon={ICONS.reloj} label="PENDIENTES DE HOY" value={m.kpis.pendientesHoy} color="var(--orange)" sub={'Vencen el ' + ddmm(hoy)} />
               <Kpi icon={ICONS.alerta} label="ATRASADAS" value={m.kpis.atrasadas} color={m.kpis.atrasadas > 0 ? 'var(--red)' : 'var(--text)'} sub="De cualquier semana" />
+              <Kpi icon={ICONS.check} label="VALIDACIONES" value={`${m.kpis.valHechas} / ${m.kpis.valPlaneadas}`} color="var(--accent-a)"
+                sub={m.kpis.valAtrasadas > 0 ? `${m.kpis.valAtrasadas} atrasada${m.kpis.valAtrasadas === 1 ? '' : 's'}` : 'Planeadas en la semana'} />
               <Kpi icon={ICONS.gauge} label="JORNADAS PLANEADAS" value={`${fmt(m.kpis.jornadas)} / ${fmt(m.kpis.capacidad)}`} color="var(--blue)" sub="Contra la capacidad de la semana" />
             </div>
           )}
@@ -732,14 +807,20 @@ export default function PlanSemanal() {
                         ? <TarjetaUo key={it.persona + it.uoId} it={it} uo={m.uoPorId[it.uoId]} pasos={m.pasosPorUo[it.uoId] || {}} hoy={hoy}
                             onAbrir={() => navigate('/backlog/' + it.uoId)}
                             onReprogramar={esCoordinador && m.reprogramables.has(it.uoId) ? () => setReprogramar({ uoId: it.uoId, actividadId: null }) : null} />
-                        : <TarjetaValidacion key={it.persona + it.act.id} it={it} uo={m.uoPorId[it.uoId]}
-                            onAbrir={() => navigate('/backlog/' + it.uoId)} />)}
+                        : <TarjetaValidacion key={it.persona + it.act.id} it={it} uo={m.uoPorId[it.uoId]} hoy={hoy}
+                            onAbrir={() => navigate('/backlog/' + it.uoId)}
+                            onReprogramar={esCoordinador ? () => setReprogramar({ uoId: it.uoId, actividadId: it.act.id }) : null} />)}
                       <div style={{ gridColumn:7, gridRow:`1 / span ${f.carriles}`, borderLeft:'0.5px solid var(--border2)', padding:'10px 14px' }}>
                         <div style={{ fontFamily:'var(--disp)', fontSize:'16px', fontWeight:700 }}>{f.hechas} / {f.planeadas}</div>
                         <Barra valor={f.hechas} total={f.planeadas} color="var(--green)" />
                         <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color: f.atrasadas > 0 ? 'var(--red)' : 'var(--muted2)' }}>
                           {f.atrasadas} atrasada{f.atrasadas === 1 ? '' : 's'}
                         </div>
+                        {f.valPlaneadas > 0 && (
+                          <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginTop:'4px' }}>
+                            Val. {f.valHechas} / {f.valPlaneadas}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -788,6 +869,11 @@ export default function PlanSemanal() {
 
           {vista === 'carga' && okCarga && (
             <>
+              {!datos.cargaVal && (
+                <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>
+                  No se pudo leer la carga de las validaciones: la carga mostrada solo incluye la de las UOs.
+                </div>
+              )}
               <div className="glass" style={{ borderRadius:'var(--radius-lg)', overflowX:'auto' }}>
                 <div style={{ minWidth:'1100px' }}>
                   <Encabezado dias={m.dias} etiquetaDia={m.etiquetaDia} hoy={hoy} />
