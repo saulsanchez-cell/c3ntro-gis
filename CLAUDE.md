@@ -58,6 +58,7 @@ Reglas:
   - "Nadie se autovalida" es un trigger (`validar_analista_distinto_uo`), no un check: solo revisa cuando cambia el digitalizador o el analista, porque en producción hay 8 UOs viejas con la misma persona (7 Cerradas y la 1447 Validada).
   - Huellas en `03_lectura_permisos.sql`. Las pruebas viejas del plan (52 y 19) ya no pasan tal cual: esperan 4 actividades y ahora son 5.
   - Las UOs asignadas antes de que existieran las actividades no tienen validación (15 en producción); van con el rescate pendiente.
+  - Frontend (PR #29, 2026-11-02): la vista Carga, "Dónde asignar" y la vista previa de REPROGRAMAR suman `plan_carga_actividad`. La tarjeta punteada tiene estado y REPROGRAMAR. El KPI "VALIDACIONES" va aparte y ATRASADAS cuenta solo los pasos. En FichaUO la validación no tiene botones ("Se completa al validar en el checklist") y el analista no puede ser el digitalizador si cambia alguno de los dos. La validación se identifica por `plantilla.momento_creacion`, no por el orden.
 - `plan_dias_inhabiles`: 7 días de descanso de ley cargados el 2026-10-29 (2026-11-16, 2026-12-25, 2027-01-01, 2027-02-01, 2027-03-15, 2027-09-16, 2027-11-15). Los feriados judíos se cargan cuando llegue el calendario, un archivo por año. Lo ya programado en un día que luego se vuelve inhábil no se mueve solo: se corrige con REPROGRAMAR.
 
 ## Seguridad en la base
@@ -106,11 +107,6 @@ Reglas:
 ## Pendientes conocidos
 
 - Políticas por rol y protección de `profiles.rol`.
-- Entrega 3 de la validación planeada (frontend):
-  - Tarjeta de validación con REPROGRAMAR y su vista previa.
-  - La vista Carga y "Dónde asignar" deben sumar `plan_carga_actividad`.
-  - KPIs de validación aparte, y el PDF.
-  - Ocultar MARCAR en la validación en FichaUO, y que el analista no pueda ser el digitalizador.
 - Fase 2 de actividades: validación por ronda e indicador de avance en Backlog y Overview.
 - Rescate de UOs en curso: el script `rescate-opcional` original no se aplica tal cual.
 - Migración a v2 con TI.
