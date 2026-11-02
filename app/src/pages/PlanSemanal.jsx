@@ -6,7 +6,7 @@ import { generarPDFPlanSemanal } from '../lib/certificado'
 
 const DIAS = ['LUN', 'MAR', 'MIE', 'JUE', 'VIE']
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
-// Los 4 pasos de asignación, por orden: insumos, preparación (Vertex), carga en Vetro, pulido en Vetro
+// Los 4 pasos de asignación, por orden: insumos, preparación (Vertex), carga en Vetro, ajustes y autorrevisión en Vetro
 const PASOS = [1, 2, 3, 4]
 const EPS = 0.005
 const VISTAS = [{ key:'plan', label:'PLAN DE ACTIVIDADES' }, { key:'carga', label:'CARGA DE TRABAJO' }]
