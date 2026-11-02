@@ -48,6 +48,16 @@ Reglas:
 ## Plan semanal
 
 - `unidades_operativas.fecha_no_antes_de` (opcional): se guarda en el mismo UPDATE que la asignación. `proponer_fechas_uo` usa `greatest(coalesce(p_inicio, plan_hoy()), fecha_no_antes_de)`. No se recalcula al reasignar; para mover las fechas después se usa REPROGRAMAR. Aplicado en SIGOprueba y producción el 2026-10-29. Huella de `proponer_fechas_uo` tras el cambio: `77bdbd410611bbd0ab7b03c86dc4ebb3`.
+- Validación planeada (`db-changes/2026-11-02_plan-validacion_*`), aplicada en SIGOprueba y producción el 2026-11-02:
+  - La plantilla "Validación de calidad" (orden 5) está activa. `generar_actividades_uo` la crea al pasar a Asignada con responsable `analista_qa_id`, aunque esté vacío.
+  - Su carga va en `plan_carga_actividad`, no en `plan_carga_uo`. `plan_carga_persona` suma las dos tablas, porque el analista también digitaliza.
+  - `proponer_validacion_uo` la pone en el primer día desde el paso 4 (o desde hoy) con `jornadas_validacion_uo` (0.5) libres, sin partirla. El trigger `trg_reasignar_validacion_uo` la mueve al cambiar el analista y la propone si no tenía carga.
+  - Se cierra sola solo al pasar de `En Validacion` a `Validada` (`trg_cerrar_validacion_uo`). `marcar_actividad` y `desmarcar_actividad` la rechazan.
+  - `reprogramar_actividad`: mover la validación solo mueve su carga; mover un paso del digitalizador la arrastra.
+  - Reglas V1–V4 en `plan_inconsistencias_validacion()`.
+  - "Nadie se autovalida" es un trigger (`validar_analista_distinto_uo`), no un check: solo revisa cuando cambia el digitalizador o el analista, porque en producción hay 8 UOs viejas con la misma persona (7 Cerradas y la 1447 Validada).
+  - Huellas en `03_lectura_permisos.sql`. Las pruebas viejas del plan (52 y 19) ya no pasan tal cual: esperan 4 actividades y ahora son 5.
+  - Las UOs asignadas antes de que existieran las actividades no tienen validación (15 en producción); van con el rescate pendiente.
 - `plan_dias_inhabiles`: 7 días de descanso de ley cargados el 2026-10-29 (2026-11-16, 2026-12-25, 2027-01-01, 2027-02-01, 2027-03-15, 2027-09-16, 2027-11-15). Los feriados judíos se cargan cuando llegue el calendario, un archivo por año. Lo ya programado en un día que luego se vuelve inhábil no se mueve solo: se corrige con REPROGRAMAR.
 
 ## Seguridad en la base
@@ -96,6 +106,11 @@ Reglas:
 ## Pendientes conocidos
 
 - Políticas por rol y protección de `profiles.rol`.
+- Entrega 3 de la validación planeada (frontend):
+  - Tarjeta de validación con REPROGRAMAR y su vista previa.
+  - La vista Carga y "Dónde asignar" deben sumar `plan_carga_actividad`.
+  - KPIs de validación aparte, y el PDF.
+  - Ocultar MARCAR en la validación en FichaUO, y que el analista no pueda ser el digitalizador.
 - Fase 2 de actividades: validación por ronda e indicador de avance en Backlog y Overview.
 - Rescate de UOs en curso: el script `rescate-opcional` original no se aplica tal cual.
 - Migración a v2 con TI.
