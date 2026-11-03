@@ -834,7 +834,8 @@ export function generarPDFPlanSemanal({ semana, lunes, dias, kpis, plan, atrasos
     dias.forEach((d, i) => {
       fuente('bold', 6.5, d.esHoy ? COLORS.orange : COLORS.gray)
       texto(d.etiqueta + (d.esHoy ? '  HOY' : ''), xDia(i) + 6, y + 10)
-      if (d.nota) { fuente('normal', 6, COLORS.gray); texto(d.nota, xDia(i) + 6, y + 19) }
+      // La nota (p. ej. 'Inhábil · motivo') se recorta al ancho de la columna
+      if (d.nota) { fuente('normal', 6, COLORS.gray); texto(recortar(d.nota, colDia - 12), xDia(i) + 6, y + 19) }
     })
     fuente('bold', 6.5, COLORS.gray)
     doc.text('SEMANA', xSemana + 6, y + 10)

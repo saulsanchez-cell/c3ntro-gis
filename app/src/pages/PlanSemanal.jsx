@@ -101,6 +101,12 @@ function estadoCarga(j, cap) {
   return { txt:'Sobrecarga +' + fmt(-libre), tono:'red', color:'var(--red)' }
 }
 
+// km_teoricos llega como texto ('0.000' es verdadero en JS): sin km = nulo o <= 0.
+// Con eso el plan solo reservó la jornada mínima.
+function sinKm(uo) {
+  return !(Number(uo.km_teoricos) > 0)
+}
+
 // Estado de una tarjeta de UO; lo usan la pantalla y el PDF
 function resumenTarjeta(uo, pasos, hoy) {
   const estados = PASOS.map(o => estadoPaso(pasos[o], hoy))
@@ -402,12 +408,12 @@ function Encabezado({ dias, etiquetaDia, hoy }) {
     <div style={{ display:'grid', gridTemplateColumns:COLUMNAS, borderBottom:'0.5px solid var(--border2)' }}>
       <div style={{ ...TH, borderBottom:'none' }}>Integrante</div>
       {dias.map((f, i) => (
-        <div key={f} style={{ ...TH, borderBottom:'none', borderLeft:'0.5px solid var(--border2)', background: f === hoy ? 'rgba(249,115,22,0.06)' : 'none' }}>
+        <div key={f} style={{ ...TH, borderBottom:'none', borderLeft:'0.5px solid var(--border2)', background: f === hoy ? 'rgba(249,115,22,0.06)' : 'none', minWidth:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
             <span>{DIAS[i]} {ddmm(f)}</span>
             {f === hoy && <span style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'1px 5px', borderRadius:'3px', background:'rgba(249,115,22,0.18)', color:'var(--orange)', letterSpacing:'0.08em' }}>HOY</span>}
           </div>
-          {etiquetaDia[f] && <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', textTransform:'none', letterSpacing:0, fontWeight:400, marginTop:'2px' }}>{etiquetaDia[f]}</div>}
+          {etiquetaDia[f] && <div title={etiquetaDia[f]} style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', textTransform:'none', letterSpacing:0, fontWeight:400, marginTop:'2px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{etiquetaDia[f]}</div>}
         </div>
       ))}
       <div style={{ ...TH, borderBottom:'none', borderLeft:'0.5px solid var(--border2)' }}>Semana</div>
@@ -439,7 +445,14 @@ function TarjetaUo({ it, uo, pasos, hoy, onAbrir, onReprogramar }) {
         background:'var(--surface2)', border:'0.5px solid var(--border2)', borderLeft:'2px solid ' + color, borderRadius:'6px', padding:'6px 8px' }}>
       <div style={{ display:'flex', alignItems:'center', gap:'6px', minWidth:0 }}>
         <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--orange)', flexShrink:0 }}>{uo.referencia_operativa}</span>
-        <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', flexShrink:0 }}>{uo.km_teoricos ? fmt(uo.km_teoricos) + ' km' : '--- km'}</span>
+        {sinKm(uo) ? (
+          <span title="Sin km teóricos: el plan reservó solo la jornada mínima. Corrige el km en la ficha (solo el coordinador)."
+            style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'1px 5px', borderRadius:'3px', background:'rgba(234,179,8,0.12)', color:'var(--yellow)', flexShrink:0 }}>
+            SIN KM
+          </span>
+        ) : (
+          <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', flexShrink:0 }}>{fmt(uo.km_teoricos)} km</span>
+        )}
         {tarde && (
           <span title={`La ultima actividad (${ddmm(ultima)}) cae despues de la entrega programada (${ddmm(uo.fecha_entrega_programada)})`}
             style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'1px 5px', borderRadius:'3px', background:'rgba(239,68,68,0.12)', color:'var(--red)', flexShrink:0 }}>
@@ -539,6 +552,8 @@ export default function PlanSemanal() {
   }, [lunes, hoy, recarga])
 
   const loading = !datos || datos.lunes !== lunes
+  // "Pendientes de hoy" solo tiene sentido en la semana que contiene hoy
+  const esSemanaActual = lunes === lunesDe(hoy)
 
   const m = useMemo(() => {
     if (!datos) return null
@@ -554,7 +569,7 @@ export default function PlanSemanal() {
     for (const f of dias) {
       const fila = datos.capacidad ? vigente(datos.capacidad.filter(r => r.dia_semana === diaSemanaIso(f)), f) : null
       capDia[f] = inhabil[f] ? 0 : Number(fila?.jornadas ?? 0)
-      etiquetaDia[f] = inhabil[f] ? 'Inhábil' : (fila?.etiqueta || null)
+      etiquetaDia[f] = inhabil[f] ? 'Inhábil · ' + inhabil[f] : (fila?.etiqueta || null)
     }
 
     const uoPorId = Object.fromEntries((datos.uos || []).map(u => [u.id, u]))
@@ -679,7 +694,9 @@ export default function PlanSemanal() {
       dias: m.dias.map((f, i) => ({ etiqueta: `${DIAS[i]} ${ddmm(f)}`, nota: m.etiquetaDia[f], esHoy: f === hoy })),
       kpis: okPlan ? [
         { label: 'ACTIVIDADES HECHAS', val: `${m.kpis.hechas} / ${m.kpis.planeadas}`, sub: 'Planeadas en la semana', tono: 'green' },
-        { label: 'PENDIENTES DE HOY', val: String(m.kpis.pendientesHoy), sub: 'Vencen el ' + ddmm(hoy), tono: 'orange' },
+        esSemanaActual
+          ? { label: 'PENDIENTES DE HOY', val: String(m.kpis.pendientesHoy), sub: 'Vencen el ' + ddmm(hoy), tono: 'orange' }
+          : { label: 'PENDIENTES DE HOY', val: '-', sub: 'Solo en la semana actual', tono: 'dark' },
         { label: 'ATRASADAS', val: String(m.kpis.atrasadas), sub: 'De cualquier semana', tono: m.kpis.atrasadas > 0 ? 'red' : 'dark' },
         { label: 'VALIDACIONES', val: `${m.kpis.valHechas} / ${m.kpis.valPlaneadas}`,
           sub: m.kpis.valAtrasadas > 0 ? `${m.kpis.valAtrasadas} atrasada${m.kpis.valAtrasadas === 1 ? '' : 's'}` : 'Planeadas en la semana',
@@ -697,7 +714,7 @@ export default function PlanSemanal() {
           const r = resumenTarjeta(uo, m.pasosPorUo[it.uoId] || {}, hoy)
           return {
             ...base,
-            km: uo.km_teoricos ? fmt(uo.km_teoricos) + ' km' : '--- km',
+            km: sinKm(uo) ? 'SIN KM' : fmt(uo.km_teoricos) + ' km',
             nombre: uo.nombre,
             estados: r.estados,
             ajustada: r.ajustadas.length > 0,
@@ -783,7 +800,9 @@ export default function PlanSemanal() {
           {okPlan && (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'8px' }}>
               <Kpi icon={ICONS.check} label="ACTIVIDADES HECHAS" value={`${m.kpis.hechas} / ${m.kpis.planeadas}`} color="var(--green)" sub="Planeadas en la semana" />
-              <Kpi icon={ICONS.reloj} label="PENDIENTES DE HOY" value={m.kpis.pendientesHoy} color="var(--orange)" sub={'Vencen el ' + ddmm(hoy)} />
+              {esSemanaActual
+                ? <Kpi icon={ICONS.reloj} label="PENDIENTES DE HOY" value={m.kpis.pendientesHoy} color="var(--orange)" sub={'Vencen el ' + ddmm(hoy)} />
+                : <Kpi icon={ICONS.reloj} label="PENDIENTES DE HOY" value="—" color="var(--muted2)" sub="Solo en la semana actual" />}
               <Kpi icon={ICONS.alerta} label="ATRASADAS" value={m.kpis.atrasadas} color={m.kpis.atrasadas > 0 ? 'var(--red)' : 'var(--text)'} sub="De cualquier semana" />
               <Kpi icon={ICONS.check} label="VALIDACIONES" value={`${m.kpis.valHechas} / ${m.kpis.valPlaneadas}`} color="var(--accent-a)"
                 sub={m.kpis.valAtrasadas > 0 ? `${m.kpis.valAtrasadas} atrasada${m.kpis.valAtrasadas === 1 ? '' : 's'}` : 'Planeadas en la semana'} />
