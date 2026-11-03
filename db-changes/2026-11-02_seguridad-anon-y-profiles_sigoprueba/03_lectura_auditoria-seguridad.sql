@@ -1,21 +1,15 @@
 -- Que hace: auditoria de seguridad del esquema public (solo lectura). Reutilizable: correrla despues de cada cambio de SQL, en SIGOprueba y en produccion.
 -- Proyecto: SIGOprueba (iadojhaibxpnirzijivf) y produccion (rtwjwfpaturmbmegwtys). Se corre como postgres en el SQL Editor.
--- Resultado esperado (despues de 01): solo filas con conocido = true. Hoy son 9: las politicas de escritura abiertas (USING true) de las tablas viejas, pendientes de las politicas por rol.
+-- Resultado esperado: solo filas con conocido = true. Desde la fase 1 de politicas por rol (2026-11-03) es 1: unidades_operativas.auth_all_uo, pendiente de la fase 2. Antes de la fase 1 eran 9.
 --   Cualquier fila con conocido = false es una regresion o algo nuevo: NO seguir y mandar la fila.
 --   Cuando se cierre un hallazgo conocido, quitarlo de la lista de abajo en el mismo PR.
 -- Usa has_table_privilege / has_function_privilege: information_schema solo muestra lo que ve quien consulta (asi se paso por alto anon el 2026-11-02).
 -- Corrido en SIGOprueba el 2026-11-02: antes del 01, 9 conocidas y 30 nuevas; despues del 01, solo las 9 conocidas (verificado tambien por MCP). Corrido en produccion el 2026-11-02: solo las conocidas (reportado por Saul).
+-- Corrido despues de la fase 1 (2026-11-03), en SIGOprueba y produccion: solo auth_all_uo (es_coordinador() se agrego a rpc_esperadas).
 
 with conocidos (hallazgo, objeto) as (values
-  -- Politicas de escritura abiertas de las tablas viejas (pendiente: politicas por rol)
-  ('politica de escritura abierta (true)', 'catalogo_observaciones_qa.auth_all_catalogo'),
-  ('politica de escritura abierta (true)', 'checklist_borradores.borradores_access'),
-  ('politica de escritura abierta (true)', 'checklist_items.auth_all_chk_items'),
-  ('politica de escritura abierta (true)', 'checklist_respuestas.auth_all_chk_resp'),
-  ('politica de escritura abierta (true)', 'checklist_resultados.auth_all_chk_res'),
-  ('politica de escritura abierta (true)', 'checklist_versiones.auth_all_chk_ver'),
-  ('politica de escritura abierta (true)', 'historial_estados.auth_all_historial'),
-  ('politica de escritura abierta (true)', 'logs_actividad.auth_all_logs'),
+  -- Politica de escritura abierta que queda (pendiente: fase 2 de politicas por rol).
+  -- Las otras 8 se cerraron en 2026-11-03_politicas-por-rol-fase1.
   ('politica de escritura abierta (true)', 'unidades_operativas.auth_all_uo')
 ),
 rpc_esperadas (objeto) as (values
@@ -23,7 +17,10 @@ rpc_esperadas (objeto) as (values
   ('marcar_actividad(uuid,timestamp with time zone,text)'),
   ('desmarcar_actividad(uuid,text)'),
   ('ajustar_hora_actividad(uuid,timestamp with time zone,text)'),
-  ('reprogramar_actividad(uuid,date,text)')
+  ('reprogramar_actividad(uuid,date,text)'),
+  -- Desde la fase 1 de politicas por rol: las politicas la llaman con la sesion
+  -- de cada usuario y lee profiles sin pasar por su RLS
+  ('es_coordinador()')
 ),
 hallazgos (hallazgo, objeto, detalle) as (
   select 'tabla sin RLS', c.relname::text, null::text
