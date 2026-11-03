@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 const TIPOS_PROYECTO = ['Baseline','Active Line','Tikva','Enterprise','Data Center','IRU','Backbone','AsBuilt','Reingenieria']
 const TIPOS_INFRA = ['Backbone','Lateral','Drop','Long Haul','IRU','Inactivo','Jumper','Sin clasificar']
@@ -8,6 +9,12 @@ const ENTIDADES = ['Aguascalientes','Baja California','Baja California Sur','Cam
 
 export default function NuevaUO() {
   const navigate = useNavigate()
+  const { profile } = useAuth()
+
+  // Solo el coordinador da de alta UOs (politica uo_insert)
+  useEffect(() => {
+    if (profile && profile.rol !== 'coordinador') navigate('/backlog')
+  }, [profile, navigate])
   const [form, setForm] = useState({
     referencia_operativa: '',
     nombre: '',

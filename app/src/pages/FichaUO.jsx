@@ -417,6 +417,8 @@ export default function FichaUO() {
 
   const esCoordinador = profile?.rol === 'coordinador'
   const esQA = profile?.id === uo.analista_qa_id
+  // Quien puede cambiar el estado en la base (uo_update + proteger_columnas_uo)
+  const puedeCambiarEstado = esCoordinador || esQA || profile?.id === uo.digitalizador_id
   const puedeEditarDistancia = profile?.id === USUARIO_AUTORIZADO_DISTANCIA
   const pctAvance = logs[0]?.porcentaje_avance ?? 0
   const ultimoPct = logs[0]?.porcentaje_avance ?? 0
@@ -476,7 +478,7 @@ export default function FichaUO() {
                 BITACORA
               </button>
             )}
-            {transiciones.length > 0 ? (
+            {!puedeCambiarEstado ? null : transiciones.length > 0 ? (
               <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
                 <select value={cambioEstado} onChange={e => setCambioEstado(e.target.value)} style={{ width:'160px', padding:'5px 8px', fontSize:'10px' }}>
                   <option value="">Cambiar estado...</option>

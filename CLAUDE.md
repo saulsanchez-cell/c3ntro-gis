@@ -76,14 +76,22 @@ Reglas:
   - `checklist_borradores`: solo los propios.
   - `checklist_resultados` y `checklist_respuestas`: los guarda el analista QA de la UO o el coordinador; editar y borrar, solo el coordinador.
   - `logs_actividad`: cada quien escribe y edita los suyos en cualquier UO, porque Edgar Molina y Martin Alcantar son cuentas de apoyo que cargan UOs ajenas; borrar, solo el coordinador.
-- Queda una política de escritura `USING (true)`: `unidades_operativas.auth_all_uo` (fase 2 pendiente). No la amplíes.
+- Políticas por rol, fase 2 (`db-changes/2026-11-03_politicas-por-rol-fase2_*`), aplicada en SIGOprueba y producción el 2026-11-03, en `unidades_operativas`:
+  - Leer: todos. Crear y borrar: solo el coordinador (`uo_insert` y `uo_delete`).
+  - Editar (`uo_update`): el coordinador, el digitalizador o el analista QA de la UO, o quien tenga un log propio en ella (cuentas de apoyo).
+  - El trigger `proteger_columnas_uo` limita qué columnas cambia cada quien:
+    - coordinador, o sin sesión (SQL Editor): todas;
+    - digitalizador o analista: `estado`, `no_revision`, `resultado_checklist` y las 3 fechas del avance (`fecha_inicio_real`, `fecha_carga_final` y `dias_proceso`);
+    - cuenta de apoyo: solo esas 3 fechas.
+  - Si una columna nueva la deben cambiar quienes no son coordinador, hay que agregarla a las listas del trigger.
+  - Frontend: "+ NUEVA UO" solo para el coordinador, y el cambio de estado en FichaUO solo para el coordinador, el digitalizador o el analista de la UO.
+- Ya no queda ninguna política de escritura `USING (true)`: la auditoría debe dar 0 filas.
 - `profiles`: cualquier sesión lee. Solo `es_coordinador()` puede hacer INSERT, UPDATE o DELETE (políticas `profiles_*`). Los perfiles se administran desde el SQL Editor. La app no escribe en `profiles`.
 - El registro de eventos (`actividades_uo_eventos`) es de solo inserción, y los cambios sensibles siguen el patrón valor anterior, valor nuevo, usuario, motivo y timestamp.
 
 ## Deuda técnica conocida (v2)
 
 - El UUID del coordinador `7063db07-ed16-4ca5-8c98-53b63d128702` sigue fijo en `proteger_km_teoricos()`, las políticas de `log_distancia` y `metas_proyecto`, y en el frontend (`USUARIO_AUTORIZADO_DISTANCIA`, `COORDINADOR_ACTIVIDADES`): ahí solo cuenta Saúl, no Sergio. `es_coordinador()` ya va por rol desde el 2026-11-03. En v2 debe ser un permiso guardado en la base.
-- `DELETE` sobre `unidades_operativas` está abierto para cualquier sesión y borra el historial y los eventos por cascada. Riesgo aceptado hasta que existan políticas por rol.
 
 ## No tocar sin que se pida
 
@@ -118,7 +126,7 @@ Reglas:
 
 ## Pendientes conocidos
 
-- Políticas por rol, fase 2: `unidades_operativas`. Crear y borrar solo el coordinador; editar, el coordinador, el digitalizador o el analista de la UO, con un trigger que limite las columnas. Una cuenta de apoyo que registra un log en una UO ajena actualiza `fecha_inicio_real`, `fecha_carga_final` y `dias_proceso`, y eso debe seguir funcionando.
+- Las cuentas de apoyo (Edgar y Martin) no pueden marcar actividades en UOs ajenas: `marcar_actividad` solo acepta al responsable o al coordinador. Saúl lo quiere "si fuera necesario": es un cambio aparte.
 - El comentario de entrega nunca se guarda: FichaUO inserta en `historial_estados` el estado `'Carga completa'`, que no existe en `estado_uo`, y el insert falla sin avisar.
 - `Checklist.jsx` escribe el historial sin revisar si el UPDATE de la UO salió bien.
 - SIGOprueba no tiene filas en `transiciones_permitidas` ni versiones o ítems de checklist: un seed solo de SIGOprueba permitiría probar estados y el checklist en la app.
