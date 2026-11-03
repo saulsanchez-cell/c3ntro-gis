@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 const ESTADOS = ['Pendiente','Asignada','En Proceso','En Validacion','Validada','Rechazada','Bloqueada','En Correccion','Cerrada']
 const ESTADO_COLOR = { Pendiente:'var(--muted2)', Asignada:'var(--orange)', 'En Proceso':'var(--blue)', 'En Validacion':'var(--accent-a)', Validada:'var(--green)', Rechazada:'var(--red)', Bloqueada:'var(--red)', 'En Correccion':'var(--yellow)', Cerrada:'var(--accent-b)' }
@@ -38,6 +39,9 @@ const FILTRO_VACIO = { tipo:'', prioridad:'', estado:'', digitalizador_id:'', an
 
 export default function Backlog() {
   const navigate = useNavigate()
+  const { profile } = useAuth()
+  // Solo el coordinador da de alta UOs (politica uo_insert)
+  const esCoordinador = profile?.rol === 'coordinador'
   const [uos, setUos] = useState([])
   const [filtro, setFiltro] = useState(FILTRO_VACIO)
   const [vista, setVista] = useState('kanban')
@@ -105,7 +109,7 @@ export default function Backlog() {
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 20px', background:'var(--surface)', borderBottom:'0.5px solid var(--border2)', flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
           <span style={{ fontWeight:'700', fontSize:'14px' }}>Backlog operativo</span>
-          <button onClick={() => navigate('/backlog/nueva')} style={{ padding:'4px 10px', borderRadius:'4px', border:'0.5px solid rgba(249,115,22,0.3)', background:'rgba(249,115,22,0.08)', color:'var(--orange)', fontSize:'9px', fontFamily:'var(--mono)', marginLeft:'8px' }}>+ NUEVA UO</button>
+          {esCoordinador && <button onClick={() => navigate('/backlog/nueva')} style={{ padding:'4px 10px', borderRadius:'4px', border:'0.5px solid rgba(249,115,22,0.3)', background:'rgba(249,115,22,0.08)', color:'var(--orange)', fontSize:'9px', fontFamily:'var(--mono)', marginLeft:'8px' }}>+ NUEVA UO</button>}
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
           <input placeholder="Buscar referencia o nombre..." value={filtro.busqueda}
