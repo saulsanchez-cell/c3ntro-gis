@@ -14,7 +14,8 @@ La reconstrucción v2 (Laravel, Vue, MySQL, Entra ID, GitLab) se hace aparte con
 - **SIGOprueba:** `iadojhaibxpnirzijivf`. Esquema de SIGO sin datos reales. El MCP de Supabase apunta solo aquí, en solo lectura.
 - Si se recrea el Codespace, reconectar el MCP solo a SIGOprueba: `claude mcp add --transport http supabase "https://mcp.supabase.com/mcp?project_ref=iadojhaibxpnirzijivf&read_only=true&features=database,docs"`. Nunca con el ID de producción.
 - `app/.env.local` apunta a SIGOprueba. Git lo ignora por la regla `*.local`. No lo leas, no lo imprimas y no pidas claves.
-- Sin ese archivo, `app/src/lib/supabase.js` usa producción. En desarrollo avisa con `console.warn`.
+- Sin ese archivo, el build (Vercel) usa producción. En desarrollo (`npm run dev`) la app **no arranca**: muestra una pantalla roja si faltan las variables o si apuntan a producción (`ERROR_ENTORNO` en `app/src/lib/supabase.js`).
+- Al recrear el Codespace, `app/.env.local` se pierde (Git lo ignora): la persona lo vuelve a crear con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` de SIGOprueba. El 2026-11-02 faltó y la app local estuvo conectada a producción.
 - Los previews de Vercel usan producción. No hagas pruebas que escriban datos en un preview.
 - Excepción a la regla de los previews: se permite **una** prueba de escritura en un preview, hecha por la persona, a propósito, con una sola UO real de baja importancia, después de aplicar el SQL en producción y antes de fusionar.
 - El frontend no se mergea hasta que el SQL del que depende esté aplicado en producción.
@@ -118,6 +119,3 @@ Reglas:
   - Razón: el plan reserva las jornadas completas desde hoy (177: 40.58; 433: 75.57) y bloquearía meses a un digitalizador.
   - Cuando se resuelva la dependencia de una UO, se planea con un script acotado a esa referencia. El coordinador puede pasarlas a Bloqueada mientras tanto.
 - Migración a v2 con TI.
-- Aviso "sin km" en la tarjeta.
-- Etiqueta de "Pendientes de hoy" en semanas pasadas.
-- Mostrar el motivo del feriado en pantalla y en el PDF.
