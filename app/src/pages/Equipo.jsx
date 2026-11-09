@@ -3,10 +3,33 @@ import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { hoyMexico } from '../lib/fechas'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { calcularKpis, sumarDias } from '../lib/kpisEvaluacion'
 import { generarPDFEvaluacion } from '../lib/certificado'
 
 const ACTIVOS = ['Asignada','En Proceso','En Validacion']
+
+// Semáforo de los KPIs (mismos textos en el CSV y el PDF)
+const ESTADOS_KPI = {
+  cumple:    { texto: 'CUMPLE',      color: 'var(--green)' },
+  cerca:     { texto: 'CERCA',       color: 'var(--yellow)' },
+  abajo:     { texto: 'ABAJO',       color: 'var(--red)' },
+  pocos:     { texto: 'POCOS DATOS', color: 'var(--muted2)' },
+  sin_datos: { texto: 'SIN DATOS',   color: 'var(--muted2)' },
+  fijo:      { texto: '---',         color: 'var(--muted2)' },
+}
+
+// Las secciones nuevas fallan en silencio: null si la consulta da error
+async function consultar(consulta) {
+  try {
+    const { data, error } = await consulta
+    return error ? null : (data || [])
+  } catch {
+    return null
+  }
+}
+
+const esReapertura = h => (h.estado_anterior === 'Validada' && h.estado_nuevo === 'En Correccion')
+  || (h.estado_anterior === 'Cerrada' && h.estado_nuevo === 'En Proceso')
 
 // Periodos con el día de hoy en México (lib/fechas), como texto 'YYYY-MM-DD'
 function inicioMes() {
@@ -33,11 +56,43 @@ export default function Equipo() {
   const [showEval, setShowEval] = useState(null)
   const [periodo, setPeriodo] = useState('mes')
   const [rangoPersonalizado, setRangoPersonalizado] = useState({ desde: '', hasta: '' })
+  const [datosPlan, setDatosPlan] = useState(null)
+  const [cargandoPlan, setCargandoPlan] = useState(false)
+
+  const desde = periodo === 'mes' ? inicioMes() : periodo === 'trimestre' ? inicioTrimestre() : (rangoPersonalizado.desde || inicioMes())
+  const hasta = periodo === 'personalizado' ? (rangoPersonalizado.hasta || hoy()) : hoy()
+
+  // Datos del plan semanal, logs y reaperturas del periodo (solo al evaluar)
+  async function fetchDatosPlan(d, h) {
+    setCargandoPlan(true)
+    const [actividades, eventos, cargaUo, cargaActividad, logs, historial, inhabiles] = await Promise.all([
+      consultar(supabase.from('actividades_uo')
+        .select('id,uo_id,orden,ronda,responsable_id,fecha_programada,completada_en,completada_por,registrada_en,plantilla:plantillas_actividad(momento_creacion)')
+        .gte('fecha_programada', sumarDias(d, -60)).lte('fecha_programada', sumarDias(h, 60))),
+      consultar(supabase.from('actividades_uo_eventos').select('actividad_id').eq('evento', 'reprogramar')),
+      consultar(supabase.from('plan_carga_uo').select('uo_id,fecha,responsable_id,jornadas').gte('fecha', d).lte('fecha', h)),
+      consultar(supabase.from('plan_carga_actividad').select('actividad_id,fecha,responsable_id,jornadas').gte('fecha', d).lte('fecha', h)),
+      consultar(supabase.from('logs_actividad').select('usuario_id,fecha').gte('fecha', d).lte('fecha', h)),
+      consultar(supabase.from('historial_estados').select('uo_id,estado_anterior,estado_nuevo,created_at')
+        .in('estado_anterior', ['Validada', 'Cerrada']).in('estado_nuevo', ['En Correccion', 'En Proceso'])),
+      consultar(supabase.from('plan_dias_inhabiles').select('fecha')),
+    ])
+    setDatosPlan({
+      actividades, cargaUo, cargaActividad, logs, inhabiles,
+      reprogramadas: eventos ? eventos.map(e => e.actividad_id) : null,
+      reaperturas: historial ? historial.filter(esReapertura) : null,
+    })
+    setCargandoPlan(false)
+  }
+
+  useEffect(() => {
+    if (showEval) fetchDatosPlan(desde, hasta)
+  }, [showEval, desde, hasta])
 
   async function fetchData() {
     const [{ data: perfiles }, { data: uosData }, { data: checklistData }] = await Promise.all([
       supabase.from('profiles').select('*').eq('activo', true),
-      supabase.from('unidades_operativas').select('id,estado,prioridad,referencia_operativa,nombre,digitalizador_id,analista_qa_id,sla_validacion,dias_proceso,no_revision,fecha_asignacion,fecha_carga_final,fecha_entrega_programada').eq('es_historico', false),
+      supabase.from('unidades_operativas').select('id,estado,prioridad,referencia_operativa,nombre,digitalizador_id,analista_qa_id,sla_validacion,dias_proceso,no_revision,fecha_asignacion,fecha_carga_final,fecha_entrega_programada,km_teoricos').eq('es_historico', false),
       supabase.from('checklist_resultados').select('*'),
     ])
     setEquipo(perfiles || [])
@@ -62,61 +117,20 @@ export default function Equipo() {
     URL.revokeObjectURL(url)
   }
 
-  function calcularEvaluacion(persona, desde, hasta) {
-    const comoDigitalizador = uos.filter(u => u.digitalizador_id === persona.id && u.fecha_asignacion >= desde && u.fecha_asignacion <= hasta)
-    const comoQA = uos.filter(u => u.analista_qa_id === persona.id && u.fecha_asignacion >= desde && u.fecha_asignacion <= hasta)
-    const validadas = comoQA.filter(u => u.estado === 'Validada').length
-    const rechazadas = comoQA.filter(u => u.estado === 'Rechazada').length
-    const enCorreccion = comoQA.filter(u => u.estado === 'En Correccion').length
-    const totalQA = comoQA.length
+  function calcularEvaluacion(persona) {
+    return calcularKpis({
+      persona, desde, hasta, hoy: hoy(),
+      datos: { uos, checklists: checklistResultados, ...(datosPlan || {}) },
+    })
+  }
 
-    const cargados = comoDigitalizador.filter(u => u.fecha_carga_final).length
-    const diasProcesoValidos = comoDigitalizador.filter(u => u.dias_proceso !== null && u.dias_proceso !== undefined)
-    const promedioDias = diasProcesoValidos.length > 0
-      ? (diasProcesoValidos.reduce((s,u) => s + u.dias_proceso, 0) / diasProcesoValidos.length).toFixed(1)
-      : null
-
-    const sumNoRevision = comoDigitalizador.reduce((s,u) => s + (u.no_revision || 0), 0)
-    const promNoRevision = comoDigitalizador.length > 0 ? (sumNoRevision / comoDigitalizador.length).toFixed(2) : 0
-
-    const checklistsPersona = checklistResultados.filter(c => c.analista_id === persona.id && c.fecha_revision >= desde && c.fecha_revision <= hasta)
-    const scorePromedio = checklistsPersona.length > 0
-      ? (checklistsPersona.reduce((s,c) => s + (c.score_porcentaje || 0), 0) / checklistsPersona.length).toFixed(1)
-      : null
-
-    const incluyeHoy = hasta >= hoy()
-    const slaVencido = incluyeHoy ? [...comoDigitalizador, ...comoQA].filter(u => u.sla_validacion > 3).length : null
-
-    const rutaCritica = comoDigitalizador
-      .filter(u => u.fecha_entrega_programada && u.fecha_carga_final)
-      .map(u => {
-        const programada = new Date(u.fecha_entrega_programada).getTime()
-        const real = new Date(u.fecha_carga_final).getTime()
-        const desviacionDias = Math.round((real - programada) / (1000 * 60 * 60 * 24))
-        return { referencia: u.referencia_operativa, desviacionDias, aTiempo: desviacionDias <= 0, cero: 0 }
-      })
-      .sort((a, b) => a.referencia.localeCompare(b.referencia))
-
-    const rutaCriticaPctATiempo = rutaCritica.length > 0 ? (rutaCritica.filter(r => r.aTiempo).length / rutaCritica.length) * 100 : null
-    const rutaCriticaDesviacionProm = rutaCritica.length > 0 ? rutaCritica.reduce((s, r) => s + r.desviacionDias, 0) / rutaCritica.length : null
-
-    return {
-      nombre: persona.nombre,
-      rol: persona.rol,
-      uos_como_digitalizador: comoDigitalizador.length,
-      uos_cargadas_completas: cargados,
-      dias_proceso_promedio: promedioDias ?? '---',
-      promedio_no_revision: promNoRevision,
-      uos_como_qa: totalQA,
-      validadas, rechazadas, en_correccion: enCorreccion,
-      tasa_aprobacion: totalQA > 0 ? ((validadas/totalQA)*100).toFixed(1)+'%' : '---',
-      score_checklist_promedio: scorePromedio ? scorePromedio+'%' : '---',
-      checklists_revisados: checklistsPersona.length,
-      uos_sla_vencido: slaVencido,
-      ruta_critica: rutaCritica,
-      ruta_critica_pct_a_tiempo: rutaCriticaPctATiempo,
-      ruta_critica_desviacion_prom: rutaCriticaDesviacionProm,
-    }
+  function filasCSV(persona, ev) {
+    return [['Technical Digitalizer', ev.digitalizador], ['Analista GIS & Calidad', ev.analista]].flatMap(([rol, lista]) =>
+      lista.map(k => ({
+        persona: persona.nombre, desde, hasta, rol, kpi: k.nombre, meta_pct: k.meta,
+        cumplen: k.ok ?? '', total: k.total ?? '', resultado_pct: k.pct === null ? '' : k.pct.toFixed(1),
+        estado: k.estado === 'fijo' ? k.etiqueta : ESTADOS_KPI[k.estado].texto,
+      })))
   }
 
   if (loading) return <div style={{padding:'40px',fontFamily:'var(--mono)',fontSize:'11px',color:'var(--muted2)'}}>Cargando...</div>
@@ -204,11 +218,11 @@ export default function Equipo() {
 
       {showEval && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div style={{ background:'var(--surface)', border:'0.5px solid var(--border)', borderRadius:'10px', padding:'24px', width:'520px', maxHeight:'85vh', overflowY:'auto', display:'flex', flexDirection:'column', gap:'14px' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ background:'var(--surface)', border:'0.5px solid var(--border)', borderRadius:'10px', padding:'24px', width:'640px', maxWidth:'calc(100vw - 32px)', maxHeight:'85vh', overflowY:'auto', display:'flex', flexDirection:'column', gap:'14px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'12px', flexWrap:'wrap' }}>
               <div>
                 <div style={{ fontWeight:'700', fontSize:'15px' }}>Evaluacion · {showEval.nombre}</div>
-                <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>{showEval.rol.replace('_',' ').toUpperCase()}</div>
+                <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>KPIS TECHNICAL DIGITALIZER Y ANALISTA GIS &amp; CALIDAD</div>
               </div>
               <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'6px' }}>
                 <div style={{ display:'flex', background:'var(--surface2)', borderRadius:'6px', padding:'2px', gap:'1px' }}>
@@ -234,90 +248,74 @@ export default function Equipo() {
             </div>
 
             {(() => {
-              const desde = periodo === 'mes' ? inicioMes() : periodo === 'trimestre' ? inicioTrimestre() : (rangoPersonalizado.desde || inicioMes())
-              const hasta = periodo === 'personalizado' ? (rangoPersonalizado.hasta || hoy()) : hoy()
-              const ev = calcularEvaluacion(showEval, desde, hasta)
+              const ev = calcularEvaluacion(showEval)
+              const tablaKpis = (titulo, color, lista) => (
+                <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.1em', borderLeft:'2px solid '+color, paddingLeft:'6px', marginBottom:'2px' }}>{titulo}</div>
+                  {lista.map(k => {
+                    const est = ESTADOS_KPI[k.estado]
+                    return (
+                      <div key={k.clave} title={k.nota}
+                        style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 52px 64px 92px 84px', alignItems:'center', gap:'8px', background:'var(--surface2)', borderRadius:'6px', padding:'7px 10px' }}>
+                        <div style={{ minWidth:0 }}>
+                          <div style={{ fontSize:'11px', fontWeight:'600' }}>{k.nombre}</div>
+                          <div style={{ fontFamily:'var(--mono)', fontSize:'7.5px', color:'var(--muted2)', marginTop:'2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{k.nota}</div>
+                        </div>
+                        <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', textAlign:'right' }}>meta {k.meta}%</div>
+                        <div style={{ fontSize:'15px', fontWeight:'700', textAlign:'right', color: k.pct === null ? 'var(--muted)' : 'var(--text)' }}>
+                          {k.pct === null ? '---' : `${k.pct.toFixed(0)}%`}
+                        </div>
+                        <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', textAlign:'right' }}>{k.estado === 'fijo' ? '' : k.etiqueta}</div>
+                        <div style={{ textAlign:'right' }}>
+                          {k.estado === 'fijo' ? (
+                            <span style={{ fontFamily:'var(--mono)', fontSize:'7.5px', color:'var(--muted2)' }}>{k.etiqueta}</span>
+                          ) : (
+                            <span style={{ fontFamily:'var(--mono)', fontSize:'7.5px', padding:'2px 6px', borderRadius:'4px', border:'0.5px solid '+est.color, color: est.color, whiteSpace:'nowrap' }}>{est.texto}</span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
               return (
                 <>
                   <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)' }}>
-                    Periodo: {desde} a {hasta}
+                    Periodo: {desde} a {hasta}{cargandoPlan ? ' · cargando datos del plan...' : ''}
                   </div>
 
-                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.1em', marginTop:'4px' }}>COMO DIGITALIZADOR</div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+                  {tablaKpis('TECHNICAL DIGITALIZER', 'var(--blue)', ev.digitalizador)}
+                  {tablaKpis('ANALISTA GIS & CALIDAD', 'var(--orange)', ev.analista)}
+
+                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.1em', marginTop:'4px' }}>CONTEXTO DEL PERIODO</div>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(5, minmax(0,1fr))', gap:'6px' }}>
                     {[
-                      { label:'UOs ASIGNADAS', val: ev.uos_como_digitalizador },
-                      { label:'CARGAS COMPLETAS', val: ev.uos_cargadas_completas },
-                      { label:'DIAS PROCESO PROM.', val: ev.dias_proceso_promedio },
-                      { label:'PROM. NO REVISION', val: ev.promedio_no_revision },
+                      { label:'UOs ASIGNADAS', val: ev.contexto.uos_asignadas },
+                      { label:'UOs CARGADAS', val: ev.contexto.uos_cargadas },
+                      { label:'KM CARGADOS', val: ev.contexto.km_cargados },
+                      { label:'DIAS PROCESO PROM.', val: ev.contexto.dias_proceso_promedio ?? '---' },
+                      { label:'CHECKLISTS REVISADOS', val: ev.contexto.checklists_revisados },
                     ].map(m => (
-                      <div key={m.label} style={{ background:'var(--surface2)', borderRadius:'6px', padding:'8px 10px' }}>
-                        <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>{m.label}</div>
-                        <div style={{ fontSize:'16px', fontWeight:'600' }}>{m.val}</div>
+                      <div key={m.label} style={{ background:'var(--surface2)', borderRadius:'6px', padding:'8px' }}>
+                        <div style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--muted2)', marginBottom:'4px' }}>{m.label}</div>
+                        <div style={{ fontSize:'14px', fontWeight:'600' }}>{m.val}</div>
                       </div>
                     ))}
                   </div>
 
-                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginTop:'4px' }}>RUTA CRITICA (PROGRAMADA VS. REAL)</div>
-                  {ev.ruta_critica.length === 0 ? (
-                    <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)', padding:'12px 0', textAlign:'center', background:'var(--surface2)', borderRadius:'6px' }}>
-                      Sin UOs con fecha programada y fecha real en este periodo.
-                    </div>
-                  ) : (
-                    <div style={{ background:'var(--surface2)', borderRadius:'6px', padding:'8px 4px 2px 4px' }}>
-                      <div style={{ display:'flex', gap:'12px', padding:'0 8px 4px 8px', fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)' }}>
-                        <span>A tiempo: <b style={{ color: ev.ruta_critica_pct_a_tiempo >= 90 ? 'var(--green)' : 'var(--yellow)' }}>{ev.ruta_critica_pct_a_tiempo.toFixed(0)}%</b></span>
-                        <span>Desviacion prom.: <b style={{ color: ev.ruta_critica_desviacion_prom <= 0 ? 'var(--green)' : 'var(--red)' }}>{ev.ruta_critica_desviacion_prom > 0 ? '+' : ''}{ev.ruta_critica_desviacion_prom.toFixed(1)}d</b></span>
-                      </div>
-                      <ResponsiveContainer width="100%" height={140}>
-                        <LineChart data={ev.ruta_critica} margin={{ left:4, right:10, bottom:0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                          <XAxis dataKey="referencia" tick={{ fontSize:7, fill:'var(--muted2)' }} hide={ev.ruta_critica.length > 8} />
-                          <YAxis tick={{ fontSize:8, fill:'var(--muted2)' }} width={26} />
-                          <Tooltip contentStyle={{ background:'#161b22', border:'0.5px solid #30363d', fontSize:'10px' }}
-                            formatter={(v) => [(v > 0 ? '+' : '') + v + ' dia(s)', 'Desviacion']} />
-                          <Line type="monotone" dataKey="cero" stroke="var(--yellow)" strokeDasharray="4 4" strokeWidth={1.5} dot={false} />
-                          <Line type="monotone" dataKey="desviacionDias" stroke="#6B7280" strokeWidth={1.5}
-                            dot={(props) => {
-                              const { cx, cy, payload, index } = props
-                              const color = payload.aTiempo ? 'var(--green)' : 'var(--red)'
-                              return <circle key={`dot-${index}`} cx={cx} cy={cy} r={3} fill={color} stroke={color} />
-                            }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
-
-                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.1em', marginTop:'4px' }}>COMO ANALISTA QA</div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-                    {[
-                      { label:'UOs REVISADAS', val: ev.uos_como_qa },
-                      { label:'TASA APROBACION', val: ev.tasa_aprobacion },
-                      { label:'VALIDADAS', val: ev.validadas, color:'var(--green)' },
-                      { label:'RECHAZADAS', val: ev.rechazadas, color:'var(--red)' },
-                      { label:'EN CORRECCION', val: ev.en_correccion, color:'var(--blue)' },
-                      { label:'SCORE CHECKLIST PROM.', val: ev.score_checklist_promedio },
-                    ].map(m => (
-                      <div key={m.label} style={{ background:'var(--surface2)', borderRadius:'6px', padding:'8px 10px' }}>
-                        <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>{m.label}</div>
-                        <div style={{ fontSize:'16px', fontWeight:'600', color: m.color }}>{m.val}</div>
-                      </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                    {ev.notas.map(n => (
+                      <div key={n} style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)' }}>· {n}</div>
                     ))}
                   </div>
-
-                  {ev.uos_sla_vencido !== null && ev.uos_sla_vencido > 0 && (
-                    <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--red)', background:'rgba(239,68,68,0.08)', border:'0.5px solid rgba(239,68,68,0.2)', borderRadius:'5px', padding:'8px 12px' }}>
-                      {ev.uos_sla_vencido} UO(s) con SLA vencido actualmente
-                    </div>
-                  )}
 
                   <div style={{ display:'flex', gap:'8px' }}>
-                    <button onClick={() => exportCSV([ev], `evaluacion_${showEval.nombre.replace(/\s+/g,'_')}_${desde}_${hasta}`)}
+                    <button onClick={() => exportCSV(filasCSV(showEval, ev), `evaluacion_${showEval.nombre.replace(/\s+/g,'_')}_${desde}_${hasta}`)}
                       style={{ flex:1, padding:'8px 0', borderRadius:'5px', border:'0.5px solid var(--border)', background:'none', color:'var(--muted2)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer' }}>
                       EXPORTAR CSV
                     </button>
-                    <button onClick={() => generarPDFEvaluacion({ persona: showEval, ev, desde, hasta })}
-                      style={{ flex:1, padding:'8px 0', borderRadius:'5px', border:'0.5px solid rgba(249,115,22,0.3)', background:'rgba(249,115,22,0.08)', color:'var(--orange)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer' }}>
+                    <button disabled={cargandoPlan} onClick={() => generarPDFEvaluacion({ persona: showEval, ev, desde, hasta })}
+                      style={{ flex:1, padding:'8px 0', borderRadius:'5px', border:'0.5px solid rgba(249,115,22,0.3)', background:'rgba(249,115,22,0.08)', color:'var(--orange)', fontSize:'9px', fontFamily:'var(--mono)', cursor: cargandoPlan ? 'wait' : 'pointer', opacity: cargandoPlan ? 0.5 : 1 }}>
                       DESCARGAR PDF
                     </button>
                   </div>

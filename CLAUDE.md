@@ -105,6 +105,7 @@ Reglas:
 - Las secciones nuevas de la interfaz fallan en silencio si la consulta da error: no rompen la pantalla.
 - El registro en `historial_estados` se escribe solo después de que el UPDATE de la UO salió bien. Si falla, se avisa con un alert.
 - Estilos en línea con las variables del proyecto (`var(--mono)`, etc.) y modales como los existentes.
+- Los KPIs de evaluación (Equipo, EVALUAR) se calculan en `app/src/lib/kpisEvaluacion.js`, con las metas en `METAS`. La ventana y el PDF (`generarPDFEvaluacion`) usan el mismo resultado; un cambio de regla o de meta se hace solo ahí.
 
 ## Flujo de git
 
