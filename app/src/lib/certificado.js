@@ -593,169 +593,151 @@ export function generarBitacoraUO({ uo, historial }) {
   doc.save(`Bitacora_${uo.referencia_operativa}.pdf`)
 }
 
+// Evaluación por KPIs (carta vertical). Recibe el resultado de
+// calcularKpis (lib/kpisEvaluacion.js): mismas cifras que la ventana EVALUAR.
 export function generarPDFEvaluacion({ persona, ev, desde, hasta }) {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 50
   const contentWidth = pageWidth - margin * 2
+  const bottom = pageHeight - 50
+  const ESTADOS = {
+    cumple: { texto: 'CUMPLE', color: COLORS.green },
+    cerca: { texto: 'CERCA', color: [202, 138, 4] },
+    abajo: { texto: 'ABAJO', color: COLORS.red },
+    pocos: { texto: 'POCOS DATOS', color: COLORS.gray },
+    sin_datos: { texto: 'SIN DATOS', color: COLORS.gray },
+    fijo: { texto: '', color: COLORS.gray },
+  }
   let y = 50
 
   function setColor(rgb) { doc.setTextColor(rgb[0], rgb[1], rgb[2]) }
   function setFill(rgb) { doc.setFillColor(rgb[0], rgb[1], rgb[2]) }
   function setDraw(rgb) { doc.setDrawColor(rgb[0], rgb[1], rgb[2]) }
+  // Las fuentes estándar de jsPDF solo cubren Latin-1
+  function limpiar(t) { return String(t ?? '').replace(/[–—]/g, '-').replace(/≥/g, '>=').replace(/…/g, '...').replace(/[^\x20-\xFF]/g, '') }
+  function texto(t, x, yy, opts) { doc.text(limpiar(t), x, yy, opts) }
+  function fuente(estilo, tam, rgb) { doc.setFont('helvetica', estilo); doc.setFontSize(tam); setColor(rgb) }
+  function saltoSiFalta(alto) {
+    if (y + alto > bottom) { doc.addPage(); y = 50 }
+  }
 
   setFill(COLORS.dark)
   doc.circle(margin + 10, y, 10, 'F')
-  setColor(COLORS.dark)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
+  fuente('bold', 13, COLORS.dark)
   doc.text('C3NTRO TELECOM', margin + 28, y - 2)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setColor(COLORS.gray)
+  fuente('normal', 8, COLORS.gray)
   doc.text('GIS Operations', margin + 28, y + 9)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  setColor(COLORS.dark)
-  doc.text('Evaluacion de desempeño', pageWidth - margin, y - 2, { align: 'right' })
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setColor(COLORS.gray)
-  doc.text(`${desde} a ${hasta}`, pageWidth - margin, y + 9, { align: 'right' })
+  fuente('bold', 11, COLORS.dark)
+  texto('Evaluacion de desempeño por KPIs', pageWidth - margin, y - 2, { align: 'right' })
+  fuente('normal', 8, COLORS.gray)
+  texto(`Periodo: ${desde} a ${hasta}`, pageWidth - margin, y + 9, { align: 'right' })
 
   y += 30
   setDraw(COLORS.border)
   doc.setLineWidth(0.5)
   doc.line(margin, y, pageWidth - margin, y)
-  y += 24
+  y += 20
 
   setFill(COLORS.lightGray)
   doc.roundedRect(margin, y, contentWidth, 42, 4, 4, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
-  setColor(COLORS.dark)
-  doc.text(persona.nombre, margin + 14, y + 24)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setColor(COLORS.gray)
-  doc.text((persona.rol || '').replace('_', ' ').toUpperCase(), pageWidth - margin - 14, y + 24, { align: 'right' })
-  y += 62
+  fuente('bold', 13, COLORS.dark)
+  texto(persona.nombre, margin + 14, y + 24)
+  fuente('normal', 8, COLORS.gray)
+  texto('TECHNICAL DIGITALIZER Y ANALISTA GIS & CALIDAD', pageWidth - margin - 14, y + 24, { align: 'right' })
+  y += 60
 
-  function kpiRow(titulo, items) {
-    if (titulo) {
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(8)
-      setColor(COLORS.dark)
-      doc.text(titulo, margin, y)
-      y += 12
-    }
-    const w = (contentWidth - (items.length - 1) * 8) / items.length
-    items.forEach((it, i) => {
-      const x = margin + i * (w + 8)
-      setFill(COLORS.lightGray)
-      doc.roundedRect(x, y, w, 44, 4, 4, 'F')
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(6.5)
-      setColor(COLORS.gray)
-      const labelLines = doc.splitTextToSize(it.label, w - 12)
-      doc.text(labelLines, x + 8, y + 14)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(13)
-      setColor(it.color || COLORS.dark)
-      doc.text(String(it.val), x + 8, y + 34)
-    })
-    y += 58
-  }
+  // Columnas de la tabla de KPIs
+  const col = { kpi: margin + 8, meta: margin + 300, res: margin + 352, casos: margin + 420, estado: pageWidth - margin - 8 }
 
-  kpiRow('COMO DIGITALIZADOR', [
-    { label: 'UOs asignadas', val: ev.uos_como_digitalizador },
-    { label: 'Cargas completas', val: ev.uos_cargadas_completas },
-    { label: 'Dias proceso prom.', val: ev.dias_proceso_promedio },
-    { label: 'Prom. no revision', val: ev.promedio_no_revision },
-  ])
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  setColor(COLORS.dark)
-  doc.text('RUTA CRITICA (PROGRAMADA VS. REAL)', margin, y)
-  y += 12
-
-  if (ev.ruta_critica.length === 0) {
-    setFill(COLORS.lightGray)
-    doc.roundedRect(margin, y, contentWidth, 30, 4, 4, 'F')
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    setColor(COLORS.gray)
-    doc.text('Sin UOs con fecha programada y fecha real en este periodo.', margin + 12, y + 19)
-    y += 44
-  } else {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7)
-    setColor(COLORS.gray)
-    doc.text(`A tiempo: ${ev.ruta_critica_pct_a_tiempo.toFixed(0)}%   ·   Desviacion promedio: ${ev.ruta_critica_desviacion_prom > 0 ? '+' : ''}${ev.ruta_critica_desviacion_prom.toFixed(1)} dias`, margin, y)
+  function tabla(titulo, color, lista) {
+    saltoSiFalta(40)
+    setFill(color)
+    doc.rect(margin, y - 8, 3, 11, 'F')
+    fuente('bold', 9, COLORS.dark)
+    texto(titulo, margin + 8, y + 1)
     y += 14
-
-    const chartH = 80, chartW = contentWidth, chartX = margin, chartY = y
-    const zeroY = chartY + chartH / 2
-    const n = ev.ruta_critica.length
-    const stepX = n > 0 ? chartW / n : chartW
-    const maxDev = Math.max(1, ...ev.ruta_critica.map(r => Math.abs(r.desviacionDias)))
-    const halfH = chartH / 2 - 6
-    const xFor = i => chartX + stepX * i + stepX / 2
-    const yFor = dev => zeroY - (dev / maxDev) * halfH
-
-    setDraw(COLORS.yellow); doc.setLineWidth(1.2); doc.setLineDashPattern([2, 2], 0)
-    doc.line(chartX, zeroY, chartX + chartW, zeroY)
-    doc.setLineDashPattern([], 0)
-
-    setDraw(COLORS.gray); doc.setLineWidth(0.8)
-    for (let i = 0; i < n - 1; i++) doc.line(xFor(i), yFor(ev.ruta_critica[i].desviacionDias), xFor(i + 1), yFor(ev.ruta_critica[i + 1].desviacionDias))
-
-    ev.ruta_critica.forEach((r, i) => {
-      setFill(r.aTiempo ? COLORS.green : COLORS.red)
-      doc.circle(xFor(i), yFor(r.desviacionDias), 2, 'F')
+    fuente('normal', 6.5, COLORS.gray)
+    texto('KPI', col.kpi, y)
+    texto('META', col.meta, y, { align: 'right' })
+    texto('RESULTADO', col.res, y, { align: 'right' })
+    texto('CASOS', col.casos, y, { align: 'right' })
+    texto('ESTADO', col.estado, y, { align: 'right' })
+    y += 6
+    lista.forEach(k => {
+      doc.setFontSize(6.5)
+      const nota = doc.splitTextToSize(limpiar(k.nota), 270)
+      const alto = 16 + nota.length * 8
+      saltoSiFalta(alto + 4)
+      setFill(COLORS.lightGray)
+      doc.roundedRect(margin, y, contentWidth, alto, 3, 3, 'F')
+      fuente('bold', 8.5, COLORS.dark)
+      texto(k.nombre, col.kpi, y + 12)
+      fuente('normal', 6.5, COLORS.gray)
+      doc.text(nota, col.kpi, y + 21)
+      fuente('normal', 8, COLORS.gray)
+      texto(`>= ${k.meta}%`, col.meta, y + 12, { align: 'right' })
+      fuente('bold', 11, k.pct === null ? COLORS.gray : COLORS.dark)
+      texto(k.pct === null ? '---' : `${k.pct.toFixed(0)}%`, col.res, y + 13, { align: 'right' })
+      fuente('normal', 7.5, COLORS.gray)
+      if (k.estado === 'fijo') texto(k.etiqueta, col.estado, y + 12, { align: 'right' })
+      else texto(k.etiqueta, col.casos, y + 12, { align: 'right' })
+      const est = ESTADOS[k.estado] || ESTADOS.sin_datos
+      if (est.texto) {
+        fuente('bold', 7, est.color)
+        texto(est.texto, col.estado, y + 12, { align: 'right' })
+      }
+      y += alto + 4
     })
-
-    doc.setFontSize(5)
-    setColor(COLORS.gray)
-    ev.ruta_critica.forEach((r, i) => {
-      doc.text(String(r.referencia ?? '---'), xFor(i), zeroY + halfH + 10, { angle: -90 })
-    })
-
-    y = zeroY + halfH + 30
+    y += 10
   }
 
-  kpiRow('COMO ANALISTA QA', [
-    { label: 'UOs revisadas', val: ev.uos_como_qa },
-    { label: 'Tasa aprobacion', val: ev.tasa_aprobacion },
-    { label: 'Score checklist prom.', val: ev.score_checklist_promedio },
-  ])
-  kpiRow('', [
-    { label: 'Validadas', val: ev.validadas, color: COLORS.green },
-    { label: 'Rechazadas', val: ev.rechazadas, color: COLORS.red },
-    { label: 'En correccion', val: ev.en_correccion, color: COLORS.blue },
-  ])
+  tabla('TECHNICAL DIGITALIZER', COLORS.blue, ev.digitalizador)
+  tabla('ANALISTA GIS & CALIDAD', COLORS.orange, ev.analista)
 
-  if (ev.uos_sla_vencido !== null && ev.uos_sla_vencido > 0) {
-    setFill([254, 242, 242])
-    doc.roundedRect(margin, y, contentWidth, 24, 4, 4, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    setColor(COLORS.red)
-    doc.text(`${ev.uos_sla_vencido} UO(s) con SLA vencido actualmente`, margin + 10, y + 16)
-    y += 34
-  }
+  // Contexto
+  saltoSiFalta(70)
+  fuente('bold', 9, COLORS.dark)
+  texto('CONTEXTO DEL PERIODO', margin, y)
+  y += 10
+  const ctx = [
+    { label: 'UOs asignadas', val: ev.contexto.uos_asignadas },
+    { label: 'UOs cargadas', val: ev.contexto.uos_cargadas },
+    { label: 'Km cargados', val: ev.contexto.km_cargados },
+    { label: 'Dias proceso prom.', val: ev.contexto.dias_proceso_promedio ?? '---' },
+    { label: 'Checklists revisados', val: ev.contexto.checklists_revisados },
+  ]
+  const w = (contentWidth - (ctx.length - 1) * 6) / ctx.length
+  ctx.forEach((c, i) => {
+    const x = margin + i * (w + 6)
+    setFill(COLORS.lightGray)
+    doc.roundedRect(x, y, w, 38, 3, 3, 'F')
+    fuente('normal', 6.5, COLORS.gray)
+    texto(c.label, x + 7, y + 12)
+    fuente('bold', 12, COLORS.dark)
+    texto(String(c.val), x + 7, y + 29)
+  })
+  y += 52
 
+  // Notas y pie
+  fuente('normal', 7, COLORS.gray)
+  ev.notas.forEach(n => {
+    const lineas = doc.splitTextToSize(limpiar('- ' + n), contentWidth)
+    saltoSiFalta(lineas.length * 9)
+    doc.text(lineas, margin, y)
+    y += lineas.length * 9
+  })
+  y += 6
+  saltoSiFalta(30)
   setDraw(COLORS.border)
   doc.line(margin, y, pageWidth - margin, y)
   y += 14
-  doc.setFontSize(6.5)
-  setColor(COLORS.gray)
-  const fechaGen = new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
-  doc.text(`Generado el ${fechaGen}`, margin, y)
+  fuente('normal', 6.5, COLORS.gray)
+  const fechaGen = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
+  texto(`Generado el ${fechaGen} · Semaforo: cumple la meta, cerca (hasta 10 puntos abajo), abajo. Metas aprobadas por Gerencia y RH.`, margin, y)
 
-  doc.save(`Evaluacion_${persona.nombre.replace(/\s+/g,'_')}_${desde}_${hasta}.pdf`)
+  doc.save(`Evaluacion_${persona.nombre.replace(/\s+/g, '_')}_${desde}_${hasta}.pdf`)
 }
 
 // Plan semanal (carta horizontal). Recibe los datos ya calculados por

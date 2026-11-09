@@ -5,7 +5,20 @@ const FORMATO_DIA_MX = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit',
 })
 
-export function hoyMexico() {
-  const p = Object.fromEntries(FORMATO_DIA_MX.formatToParts(new Date()).map(x => [x.type, x.value]))
+function diaDe(fecha) {
+  const p = Object.fromEntries(FORMATO_DIA_MX.formatToParts(fecha).map(x => [x.type, x.value]))
   return `${p.year}-${p.month}-${p.day}`
+}
+
+export function hoyMexico() {
+  return diaDe(new Date())
+}
+
+// Día de México ('YYYY-MM-DD') de un valor guardado: una fecha sola se
+// devuelve igual; un timestamp se convierte a la hora de Ciudad de México.
+export function diaMexico(valor) {
+  if (!valor) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(valor)) return valor
+  const fecha = new Date(valor)
+  return Number.isNaN(fecha.getTime()) ? null : diaDe(fecha)
 }
