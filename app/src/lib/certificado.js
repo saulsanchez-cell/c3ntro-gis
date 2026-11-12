@@ -951,6 +951,15 @@ export function generarPDFPlanSemanal({ semana, lunes, dias, kpis, plan, atrasos
       lineasFila(alto)
       nombrePersona(fila.nombre)
 
+      // Ausencia de la persona: fondo gris del día y etiqueta abajo a la derecha
+      ;(fila.ausencias || []).forEach((a, i) => {
+        if (!a) return
+        setFill([241, 243, 246])
+        doc.rect(xDia(i) + 0.5, y + 0.5, colDia - 1, alto - 1, 'F')
+        fuente('bold', 5.5, COLORS.gray)
+        texto(a.toUpperCase(), xDia(i) + colDia - 5, y + alto - 3, { align: 'right' })
+      })
+
       for (const it of fila.items) {
         if (it.carril >= MAX_CARRILES) continue
         tarjeta(it, xDia(it.ini) + 3, (it.fin - it.ini + 1) * colDia - 6, y + GAP + it.carril * (CARD_H + GAP))
@@ -999,6 +1008,7 @@ export function generarPDFPlanSemanal({ semana, lunes, dias, kpis, plan, atrasos
       'aj = fecha ajustada a mano',
       'ENTREGA dd/mm = la ultima actividad cae despues de la entrega programada',
       'Punteada = validacion',
+      'Fondo gris = ausencia de la persona',
     ]
     fuente('normal', 6.5, COLORS.gray)
     for (const n of notas) {
@@ -1075,6 +1085,10 @@ export function generarPDFPlanSemanal({ semana, lunes, dias, kpis, plan, atrasos
         barra(x, y + 15, w, c.j, c.cap, TONOS[c.tono] || COLORS.gray)
         fuente('bold', 6.5, TONOS[c.tono] || COLORS.gray)
         texto(c.estado, x, y + 26)
+        if (c.ausencia) {
+          fuente('bold', 5.5, COLORS.gray)
+          texto(c.ausencia.toUpperCase(), x + w, y + 26, { align: 'right' })
+        }
         if (c.refs.length > 0) {
           fuente('normal', 5.5, COLORS.orange)
           doc.text(doc.splitTextToSize(limpiar(c.refs.join(' · ')), w).slice(0, 2), x, y + 34)

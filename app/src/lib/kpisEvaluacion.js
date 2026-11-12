@@ -12,6 +12,9 @@
 //   cierre del periodo; la puntualidad se mide en Entregables.
 // - Calidad de la información: liberada sin advertencias críticas y sin
 //   reapertura posterior.
+// - Ausencias (plan_ausencias, 2026-11-12): un día de ausencia completa de la
+//   persona no cuenta en su registro diario ni dentro de sus días hábiles de
+//   corrección o liberación. El medio día sí cuenta como día hábil.
 // Todas las fechas son días de México en texto 'YYYY-MM-DD'.
 
 import { diaMexico } from './fechas'
@@ -176,7 +179,7 @@ function produccion({ responsableId, desde, hasta, hoy, cierre, cargaUo, cargaAc
  * @param desde, hasta  periodo 'YYYY-MM-DD' (inclusive)
  * @param hoy  día de hoy en México
  * @param datos  { uos, checklists, reaperturas, actividades, reprogramadas,
- *                 cargaUo, cargaActividad, logs, inhabiles }
+ *                 cargaUo, cargaActividad, logs, inhabiles, ausencias }
  *   Cada colección puede ser null si su consulta falló: los KPIs que la
  *   necesitan salen "Sin datos".
  */
@@ -184,6 +187,10 @@ export function calcularKpis({ persona, desde, hasta, hoy, datos }) {
   const pid = persona.id
   const cierre = hasta < hoy ? hasta : hoy
   const inhabiles = new Set((datos.inhabiles || []).map(d => d.fecha))
+  // Días que la persona evaluada no trabaja: feriados más sus ausencias de día completo
+  const ausenteCompleto = new Set((datos.ausencias || [])
+    .filter(a => a.profile_id === persona.id && Number(a.fraccion) >= 1).map(a => a.fecha))
+  const inhabilesPersona = new Set([...inhabiles, ...ausenteCompleto])
   const uos = datos.uos || []
   const uoPorId = new Map(uos.map(u => [u.id, u]))
   const revs = datos.checklists ? revisionesPorUo(datos.checklists) : null
@@ -239,7 +246,7 @@ export function calcularKpis({ persona, desde, hasta, hoy, datos }) {
     const diasCarga = new Set()
     const hastaReg = hasta < hoy ? hasta : sumarDias(hoy, -1)
     for (const c of [...datos.cargaUo, ...datos.cargaActividad]) {
-      if (c.responsable_id === pid && enRango(c.fecha, desde, hastaReg) && esHabil(c.fecha, inhabiles)) diasCarga.add(c.fecha)
+      if (c.responsable_id === pid && enRango(c.fecha, desde, hastaReg) && esHabil(c.fecha, inhabilesPersona)) diasCarga.add(c.fecha)
     }
     const diasRegistro = new Set()
     for (const l of datos.logs) if (l.usuario_id === pid) diasRegistro.add(diaMexico(l.fecha))
@@ -258,7 +265,7 @@ export function calcularKpis({ persona, desde, hasta, hoy, datos }) {
       if (!u || u.digitalizador_id !== pid) continue
       lista.forEach((r, i) => {
         if (r.resultado !== 'Rechazado' || !enRango(r.dia, desde, hasta)) return
-        const limite = sumarHabiles(r.dia, diasObjetivo(u.km_teoricos), inhabiles)
+        const limite = sumarHabiles(r.dia, diasObjetivo(u.km_teoricos), inhabilesPersona)
         const siguiente = lista[i + 1]
         if (!siguiente && limite >= hoy) return
         total++
@@ -302,7 +309,7 @@ export function calcularKpis({ persona, desde, hasta, hoy, datos }) {
       const inicio = fin ? diaMexico(fin.completada_en) : null
       if (!inicio) continue
       const u = uoPorId.get(a.uo_id)
-      const limite = sumarHabiles(inicio, diasObjetivo(u?.km_teoricos), inhabiles)
+      const limite = sumarHabiles(inicio, diasObjetivo(u?.km_teoricos), inhabilesPersona)
       const hecho = diaMexico(a.completada_en)
       if (hecho ? !enRango(hecho, desde, hasta) : (limite >= hoy || !enRango(limite, desde, hasta))) continue
       total++
@@ -317,7 +324,7 @@ export function calcularKpis({ persona, desde, hasta, hoy, datos }) {
       if (!u || !carga || primera.analista_id !== pid || (primera.no_revision_al_momento ?? 1) > 1) continue
       if (!enRango(primera.dia, desde, hasta) || primera.dia < carga) continue
       total++
-      if (primera.dia <= sumarHabiles(carga, diasObjetivo(u.km_teoricos), inhabiles)) ok++
+      if (primera.dia <= sumarHabiles(carga, diasObjetivo(u.km_teoricos), inhabilesPersona)) ok++
     }
     qa.push(kpi({ clave: 'liberacion', nombre: 'Tiempo de liberacion', meta: METAS.liberacion, ok, total,
       nota: 'Validacion en 3 dias habiles desde que termina el digitalizador (+1 por cada 30 km arriba de 30).' }))
@@ -353,6 +360,8 @@ export function calcularKpis({ persona, desde, hasta, hoy, datos }) {
   if (desde < INICIO_PLAN) notas.push(`Produccion, entregables y registro diario usan el plan semanal, que existe desde ${INICIO_PLAN}.`)
   if (desde < INICIO_VALIDACION_PLANEADA) notas.push(`Antes de ${INICIO_VALIDACION_PLANEADA} el tiempo de liberacion se mide de la carga final a la primera revision.`)
   notas.push(`Con menos de ${MIN_CASOS} casos el KPI se marca "pocos datos".`)
+  const ausentesPeriodo = [...ausenteCompleto].filter(d => enRango(d, desde, hasta)).length
+  if (ausentesPeriodo > 0) notas.push(`${ausentesPeriodo} dia(s) de ausencia completa en el periodo: no cuentan en el registro diario ni en los plazos de correccion y liberacion.`)
 
   return { digitalizador: dig, analista: qa, contexto, notas }
 }
