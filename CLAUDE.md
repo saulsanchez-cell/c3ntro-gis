@@ -61,6 +61,13 @@ Reglas:
   - Las UOs asignadas antes de que existieran las actividades no tienen validación (15 en producción); van con el rescate pendiente.
   - Frontend (PR #29, 2026-11-02): la vista Carga, "Dónde asignar" y la vista previa de REPROGRAMAR suman `plan_carga_actividad`. La tarjeta punteada tiene estado y REPROGRAMAR. El KPI "VALIDACIONES" va aparte y ATRASADAS cuenta solo los pasos. En FichaUO la validación no tiene botones ("Se completa al validar en el checklist") y el analista no puede ser el digitalizador si cambia alguno de los dos. La validación se identifica por `plantilla.momento_creacion`, no por el orden.
 - `plan_dias_inhabiles`: 7 días de descanso de ley cargados el 2026-10-29 (2026-11-16, 2026-12-25, 2027-01-01, 2027-02-01, 2027-03-15, 2027-09-16, 2027-11-15). Los feriados judíos se cargan cuando llegue el calendario, un archivo por año. Lo ya programado en un día que luego se vuelve inhábil no se mueve solo: se corrige con REPROGRAMAR.
+- Desde el 2026-11-12 el coordinador agrega y quita feriados desde la app (Plan semanal, "AUSENCIAS Y FERIADOS"): políticas `plan_dias_inhabiles_insert` y `plan_dias_inhabiles_delete` con `es_coordinador()`. Ya no hace falta un archivo SQL por feriado.
+- Ausencias por persona (`db-changes/2026-11-12_plan-ausencias_*`), aplicadas en SIGOprueba y producción el 2026-11-12:
+  - `plan_ausencias`: una fila por persona y día; `fraccion` 1 (día completo) o 0.5 (medio día); `tipo` Vacaciones, Permiso u Otro; `nota` opcional de hasta 120 caracteres. Todos leen; solo el coordinador agrega o quita (nadie edita). La nota la ve todo el equipo: sin motivos de salud.
+  - `plan_ausencia_persona` = fracción × `plan_capacidad_dia`, y `plan_carga_persona` la suma. Así `proponer_fechas_uo` y `proponer_validacion_uo` saltan las ausencias sin haberse modificado (sus huellas siguen igual).
+  - Huellas: `plan_carga_persona` `53007a90297d5d35b9718b1f966d7554` y `plan_ausencia_persona` `715a3fcc727396b1fbc11f356f9eba7b`.
+  - No cambian `plan_capacidad_dia` (es de todo el equipo), `plan_sumar_dias_habiles` ni `reprogramar_actividad`. La carga ya programada en un día de ausencia no se mueve sola: la app avisa ("CARGA EN DÍAS DE AUSENCIA") y se corrige con REPROGRAMAR.
+  - KPIs de evaluación: un día de ausencia completa no cuenta en el registro diario ni en los plazos de corrección y liberación de esa persona.
 
 ## Seguridad en la base
 

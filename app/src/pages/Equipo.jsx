@@ -65,7 +65,7 @@ export default function Equipo() {
   // Datos del plan semanal, logs y reaperturas del periodo (solo al evaluar)
   async function fetchDatosPlan(d, h) {
     setCargandoPlan(true)
-    const [actividades, eventos, cargaUo, cargaActividad, logs, historial, inhabiles] = await Promise.all([
+    const [actividades, eventos, cargaUo, cargaActividad, logs, historial, inhabiles, ausencias] = await Promise.all([
       consultar(supabase.from('actividades_uo')
         .select('id,uo_id,orden,ronda,responsable_id,fecha_programada,completada_en,completada_por,registrada_en,plantilla:plantillas_actividad(momento_creacion)')
         .gte('fecha_programada', sumarDias(d, -60)).lte('fecha_programada', sumarDias(h, 60))),
@@ -76,9 +76,12 @@ export default function Equipo() {
       consultar(supabase.from('historial_estados').select('uo_id,estado_anterior,estado_nuevo,created_at')
         .in('estado_anterior', ['Validada', 'Cerrada']).in('estado_nuevo', ['En Correccion', 'En Proceso'])),
       consultar(supabase.from('plan_dias_inhabiles').select('fecha')),
+      // Ausencias: no cuentan en el registro diario ni en los plazos de quien estuvo ausente
+      consultar(supabase.from('plan_ausencias').select('profile_id,fecha,fraccion')
+        .gte('fecha', sumarDias(d, -60)).lte('fecha', sumarDias(h, 60))),
     ])
     setDatosPlan({
-      actividades, cargaUo, cargaActividad, logs, inhabiles,
+      actividades, cargaUo, cargaActividad, logs, inhabiles, ausencias,
       reprogramadas: eventos ? eventos.map(e => e.actividad_id) : null,
       reaperturas: historial ? historial.filter(esReapertura) : null,
     })

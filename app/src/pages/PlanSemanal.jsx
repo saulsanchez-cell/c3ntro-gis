@@ -12,6 +12,11 @@ const PASOS = [1, 2, 3, 4]
 const esValidacion = a => a?.plantilla?.momento_creacion === 'validacion'
 const EPS = 0.005
 const VISTAS = [{ key:'plan', label:'PLAN DE ACTIVIDADES' }, { key:'carga', label:'CARGA DE TRABAJO' }]
+// Ausencias por persona (plan_ausencias): dia completo (1) o medio dia (0.5).
+// La nota la leen todos los usuarios con sesion: sin motivos de salud.
+const TIPOS_AUSENCIA = ['Vacaciones', 'Permiso', 'Otro']
+const MAX_DIAS_AUSENCIA = 60
+function textoAusencia(a) { return a.tipo + (Number(a.fraccion) < 1 ? ' ½ día' : '') }
 
 const ICONS = {
   check: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6L9 17l-5-5"/></svg>,
@@ -226,25 +231,28 @@ function ModalReprogramar({ uo, actsUo, capacidad, nombres, hoy, actividadInicia
           .select('actividad_id,fecha,responsable_id,jornadas').in('actividad_id', idsValidacion)),
         consultar(supabase.from('plan_dias_inhabiles').select('fecha')),
       ])
-      let cargaPersonas = null
+      let cargaPersonas = null, ausencias = null
       if (cargaUo && cargaVal) {
         const propias = [...cargaUo, ...cargaVal]
-        const personas = [...new Set(propias.map(c => c.responsable_id).filter(Boolean))]
+        const personas = [...new Set([...propias.map(c => c.responsable_id), ...actsUo.map(a => a.responsable_id)].filter(Boolean))]
         const desde = [hoy, ...propias.map(c => c.fecha)].sort()[0]
-        if (personas.length === 0) cargaPersonas = []
+        if (personas.length === 0) { cargaPersonas = []; ausencias = new Map() }
         else {
-          const [deUos, deActividades] = await Promise.all([
+          const [deUos, deActividades, deAusencias] = await Promise.all([
             consultar(supabase.from('plan_carga_uo')
               .select('uo_id,fecha,responsable_id,jornadas').in('responsable_id', personas).gte('fecha', desde)),
             consultar(supabase.from('plan_carga_actividad')
               .select('fecha,responsable_id,jornadas,actividad:actividades_uo(uo_id)').in('responsable_id', personas).gte('fecha', desde)),
+            consultar(supabase.from('plan_ausencias')
+              .select('profile_id,fecha,fraccion,tipo').in('profile_id', personas).gte('fecha', desde)),
           ])
           cargaPersonas = deUos && deActividades
             ? [...deUos, ...deActividades.map(c => ({ uo_id: c.actividad?.uo_id, fecha: c.fecha, responsable_id: c.responsable_id, jornadas: c.jornadas }))]
             : null
+          ausencias = deAusencias ? new Map(deAusencias.map(a => [`${a.profile_id}|${a.fecha}`, a])) : null
         }
       }
-      if (actual) setExtra({ cargaUo, cargaVal, inhabiles: inhabiles ? new Set(inhabiles.map(r => r.fecha)) : null, cargaPersonas })
+      if (actual) setExtra({ cargaUo, cargaVal, inhabiles: inhabiles ? new Set(inhabiles.map(r => r.fecha)) : null, cargaPersonas, ausencias })
     })()
     return () => { actual = false }
   }, [uo.id, hoy, idsValidacion.join(',')])
@@ -274,9 +282,22 @@ function ModalReprogramar({ uo, actsUo, capacidad, nombres, hoy, actividadInicia
             const otras = extra.cargaPersonas
               .filter(o => o.responsable_id === c.responsable_id && o.fecha === c.fecha && o.uo_id !== uo.id)
               .reduce((s, o) => s + Number(o.jornadas), 0)
-            return { ...c, total: otras + c.jornadas, capacidad: cap(c.fecha) }
+            const fraccion = Number(extra.ausencias?.get(`${c.responsable_id}|${c.fecha}`)?.fraccion ?? 0)
+            return { ...c, total: otras + c.jornadas, capacidad: cap(c.fecha) * (1 - fraccion) }
           }).filter(c => c.total > c.capacidad + EPS)
         : []
+      // Fechas nuevas que caen en una ausencia del responsable (pasos movidos y su carga)
+      const vistos = new Set()
+      vista.ausencias = !extra.ausencias ? [] : [
+        ...vista.pasos.map(p => ({ responsable_id: p.responsable_id, fecha: p.nueva })),
+        ...vista.carga.filter(c => c.movida).map(c => ({ responsable_id: c.responsable_id, fecha: c.fecha })),
+      ].flatMap(x => {
+        const a = x.responsable_id && extra.ausencias.get(`${x.responsable_id}|${x.fecha}`)
+        const k = `${x.responsable_id}|${x.fecha}`
+        if (!a || vistos.has(k)) return []
+        vistos.add(k)
+        return [{ ...x, ausencia: a }]
+      })
     } catch (e) {
       errorVista = e.message
     }
@@ -347,6 +368,11 @@ function ModalReprogramar({ uo, actsUo, capacidad, nombres, hoy, actividadInicia
                     Aviso: {nombres[s.responsable_id] ?? 'el responsable'} quedaria con sobrecarga el {DIAS[diaSemanaIso(s.fecha) - 1] ?? ''} {ddmm(s.fecha)} ({fmt(s.total)} / {fmt(s.capacidad)}). Se puede guardar igual.
                   </div>
                 ))}
+                {vista.ausencias.map(s => (
+                  <div key={'aus' + s.fecha + s.responsable_id} style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--orange)' }}>
+                    Aviso: {nombres[s.responsable_id] ?? 'el responsable'} tiene {textoAusencia(s.ausencia)} el {DIAS[diaSemanaIso(s.fecha) - 1] ?? ''} {ddmm(s.fecha)}. Se puede guardar igual.
+                  </div>
+                ))}
               </div>
             )}
             {errorVista && <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)' }}>No se pudo calcular la vista previa: {errorVista}</div>}
@@ -370,12 +396,244 @@ function ModalReprogramar({ uo, actsUo, capacidad, nombres, hoy, actividadInicia
   )
 }
 
+// Agrupa ausencias de la misma persona en días hábiles seguidos, con el mismo tipo, fracción y nota
+function agruparAusencias(lista, cap) {
+  const orden = [...lista].sort((a, b) => a.profile_id.localeCompare(b.profile_id) || a.fecha.localeCompare(b.fecha))
+  const grupos = []
+  for (const a of orden) {
+    const g = grupos[grupos.length - 1]
+    const mismo = g && g.profile_id === a.profile_id && g.tipo === a.tipo && Number(g.fraccion) === Number(a.fraccion) && (g.nota || '') === (a.nota || '')
+    if (mismo && sumarDiasHabiles(g.hasta, 1, cap) === a.fecha) { g.hasta = a.fecha; g.fechas.push(a.fecha) }
+    else grupos.push({ ...a, desde: a.fecha, hasta: a.fecha, fechas: [a.fecha] })
+  }
+  return grupos.sort((a, b) => a.desde.localeCompare(b.desde) || (a.nombre || '').localeCompare(b.nombre || ''))
+}
+
+const BOTON_CHICO = { fontFamily:'var(--mono)', fontSize:'8px', padding:'4px 8px', borderRadius:'4px', border:'0.5px solid rgba(239,68,68,0.3)', background:'rgba(239,68,68,0.06)', color:'var(--red)', cursor:'pointer' }
+const FILA_LISTA = { display:'flex', alignItems:'center', gap:'8px', background:'var(--surface2)', border:'0.5px solid var(--border2)', borderRadius:'6px', padding:'6px 10px', fontFamily:'var(--mono)', fontSize:'9px' }
+
+// Ausencias por persona y feriados; solo el coordinador (la base lo valida con es_coordinador())
+function ModalAusencias({ integrantes, capacidad, hoy, onCerrar, onCambio }) {
+  const [datos, setDatos] = useState(null)  // { ausencias, inhabiles } o null mientras carga
+  const [recarga, setRecarga] = useState(0)
+  const [form, setForm] = useState({ persona: integrantes[0]?.id ?? '', desde: '', hasta: '', medio: false, tipo: 'Vacaciones', nota: '' })
+  const [feriado, setFeriado] = useState({ fecha: '', descripcion: '' })
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let actual = true
+    ;(async () => {
+      const [ausencias, inhabiles] = await Promise.all([
+        consultar(supabase.from('plan_ausencias')
+          .select('profile_id,fecha,fraccion,tipo,nota,perfil:profiles!plan_ausencias_profile_id_fkey(nombre)')
+          .gte('fecha', hoy).order('fecha')),
+        consultar(supabase.from('plan_dias_inhabiles').select('fecha,descripcion').order('fecha')),
+      ])
+      if (actual) setDatos({ ausencias, inhabiles })
+    })()
+    return () => { actual = false }
+  }, [hoy, recarga])
+
+  const inhabilesSet = datos?.inhabiles ? new Set(datos.inhabiles.map(r => r.fecha)) : null
+  const cap = inhabilesSet ? f => capacidadDia(f, capacidad, inhabilesSet) : null
+
+  // Días hábiles del rango (sin fines de semana ni feriados) y los que la persona ya tiene registrados
+  const hasta = form.hasta || form.desde
+  let dias = [], avisoRango = ''
+  if (form.desde && cap) {
+    if (hasta < form.desde) avisoRango = 'La fecha final es anterior a la inicial'
+    else if (form.desde < hoy) avisoRango = `No se registran ausencias antes de hoy (${ddmm(hoy)})`
+    else if (diasEntre(form.desde, hasta) > MAX_DIAS_AUSENCIA) avisoRango = `El rango no puede pasar de ${MAX_DIAS_AUSENCIA} días`
+    else for (let d = form.desde; d <= hasta; d = sumarDias(d, 1)) if (cap(d) > 0) dias.push(d)
+  }
+  const yaRegistradas = new Set((datos?.ausencias || []).filter(a => a.profile_id === form.persona).map(a => a.fecha))
+  const nuevos = dias.filter(d => !yaRegistradas.has(d))
+  const omitidos = dias.length - nuevos.length
+  const notaOk = form.nota.trim().length <= 120
+  const puedeGuardar = form.persona && nuevos.length > 0 && !avisoRango && notaOk && !saving
+
+  async function guardarAusencia() {
+    if (!puedeGuardar) return
+    setError('')
+    setSaving(true)
+    const filas = nuevos.map(fecha => ({
+      profile_id: form.persona, fecha, fraccion: form.medio ? 0.5 : 1, tipo: form.tipo, nota: form.nota.trim() || null,
+    }))
+    const { error: e } = await supabase.from('plan_ausencias').insert(filas)
+    setSaving(false)
+    if (e) { setError('No se pudo registrar la ausencia: ' + e.message); return }
+    setForm(f => ({ ...f, desde: '', hasta: '', nota: '' }))
+    setRecarga(r => r + 1)
+    onCambio()
+  }
+
+  async function quitarAusencia(g) {
+    const rango = g.desde === g.hasta ? ddmm(g.desde) : `${ddmm(g.desde)} al ${ddmm(g.hasta)}`
+    if (!window.confirm(`¿Quitar la ausencia de ${g.perfil?.nombre ?? 'esta persona'} (${rango})?`)) return
+    setError('')
+    const { error: e } = await supabase.from('plan_ausencias').delete().eq('profile_id', g.profile_id).in('fecha', g.fechas)
+    if (e) { setError('No se pudo quitar la ausencia: ' + e.message); return }
+    setRecarga(r => r + 1)
+    onCambio()
+  }
+
+  const descripcionOk = feriado.descripcion.trim().length >= 3 && feriado.descripcion.trim().length <= 80
+  const feriadoRepetido = Boolean(feriado.fecha && inhabilesSet?.has(feriado.fecha))
+  const puedeFeriado = feriado.fecha && feriado.fecha >= hoy && descripcionOk && !feriadoRepetido && !saving
+
+  async function guardarFeriado() {
+    if (!puedeFeriado) return
+    setError('')
+    setSaving(true)
+    const { error: e } = await supabase.from('plan_dias_inhabiles').insert({ fecha: feriado.fecha, descripcion: feriado.descripcion.trim() })
+    setSaving(false)
+    if (e) { setError('No se pudo agregar el feriado: ' + e.message); return }
+    setFeriado({ fecha: '', descripcion: '' })
+    setRecarga(r => r + 1)
+    onCambio()
+  }
+
+  async function quitarFeriado(f) {
+    if (!window.confirm(`¿Quitar el feriado del ${ddmm(f.fecha)} (${f.descripcion})?`)) return
+    setError('')
+    const { error: e } = await supabase.from('plan_dias_inhabiles').delete().eq('fecha', f.fecha)
+    if (e) { setError('No se pudo quitar el feriado: ' + e.message); return }
+    setRecarga(r => r + 1)
+    onCambio()
+  }
+
+  const grupos = datos?.ausencias && cap ? agruparAusencias(datos.ausencias, cap) : []
+  const proximosFeriados = (datos?.inhabiles || []).filter(f => f.fecha >= hoy)
+  const SECCION = { fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.12em' }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
+      <div style={{ background:'var(--surface)', border:'0.5px solid var(--border)', borderRadius:'10px', padding:'24px', width:'560px', maxWidth:'92vw', maxHeight:'90vh', overflowY:'auto', display:'flex', flexDirection:'column', gap:'14px' }}>
+        <div style={{ fontWeight:'700', fontSize:'15px' }}>Ausencias y feriados</div>
+        <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)', lineHeight:1.5 }}>
+          Al asignar, el plan ya no propone trabajo en los días de ausencia de cada persona. Lo que ya estaba programado en esos días no se mueve solo: se corrige con REPROGRAMAR.
+        </div>
+
+        {!datos ? (
+          <div style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--muted2)' }}>Cargando...</div>
+        ) : (!datos.ausencias || !datos.inhabiles) ? (
+          <div style={CAJA_ERROR}>No se pudieron leer las ausencias o los feriados. Intenta de nuevo más tarde.</div>
+        ) : (
+          <>
+            <div style={SECCION}>REGISTRAR AUSENCIA</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+              <div>
+                <div style={LABEL}>PERSONA *</div>
+                <select value={form.persona} onChange={e => setForm(f => ({ ...f, persona: e.target.value }))}>
+                  {integrantes.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={LABEL}>TIPO *</div>
+                <select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
+                  {TIPOS_AUSENCIA.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={LABEL}>DESDE *</div>
+                <input type="date" value={form.desde} min={hoy} onChange={e => setForm(f => ({ ...f, desde: e.target.value }))} />
+              </div>
+              <div>
+                <div style={LABEL}>HASTA (VACÍO = UN SOLO DÍA)</div>
+                <input type="date" value={form.hasta} min={form.desde || hoy} onChange={e => setForm(f => ({ ...f, hasta: e.target.value }))} />
+              </div>
+            </div>
+            <label style={{ display:'flex', alignItems:'center', gap:'8px', fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)', cursor:'pointer' }}>
+              <input type="checkbox" checked={form.medio} onChange={e => setForm(f => ({ ...f, medio: e.target.checked }))} style={{ width:'auto' }} />
+              Medio día (cada día del rango)
+            </label>
+            <div>
+              <div style={LABEL}>NOTA (OPCIONAL)</div>
+              <input type="text" value={form.nota} maxLength={120} onChange={e => setForm(f => ({ ...f, nota: e.target.value }))}
+                placeholder="Visible para todo el equipo: no escribas motivos de salud" />
+            </div>
+            {form.desde && (
+              <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color: avisoRango ? 'var(--red)' : 'var(--muted2)', lineHeight:1.5 }}>
+                {avisoRango || (nuevos.length === 0
+                  ? 'No hay días hábiles nuevos en ese rango para esta persona.'
+                  : `Se registran ${nuevos.length} día${nuevos.length === 1 ? '' : 's'} hábil${nuevos.length === 1 ? '' : 'es'}: ${nuevos.map(ddmm).join(', ')}` +
+                    (omitidos > 0 ? ` · ${omitidos} ya registrado${omitidos === 1 ? '' : 's'}` : '') +
+                    ' · sin fines de semana ni feriados')}
+              </div>
+            )}
+            <div style={{ display:'flex', justifyContent:'flex-end' }}>
+              <button onClick={guardarAusencia} disabled={!puedeGuardar}
+                style={{ padding:'7px 14px', borderRadius:'5px', border:'none', background:'var(--orange)', color:'#080808', fontSize:'10px', fontFamily:'var(--mono)', fontWeight:'500', opacity: puedeGuardar ? 1 : 0.4 }}>
+                {saving ? 'GUARDANDO...' : 'REGISTRAR AUSENCIA'}
+              </button>
+            </div>
+
+            <div style={SECCION}>PRÓXIMAS AUSENCIAS · {grupos.length}</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              {grupos.length === 0 && <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)' }}>Sin ausencias registradas desde hoy.</div>}
+              {grupos.map(g => (
+                <div key={g.profile_id + g.desde} style={FILA_LISTA}>
+                  <span style={{ color:'var(--text)', minWidth:0, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
+                    title={g.nota || undefined}>
+                    {g.perfil?.nombre ?? '---'} · {g.desde === g.hasta ? ddmm(g.desde) : `${ddmm(g.desde)} al ${ddmm(g.hasta)} (${g.fechas.length} días)`} · {textoAusencia(g)}{g.nota ? ` · ${g.nota}` : ''}
+                  </span>
+                  <button onClick={() => quitarAusencia(g)} style={BOTON_CHICO}>QUITAR</button>
+                </div>
+              ))}
+            </div>
+
+            <div style={SECCION}>FERIADOS (TODO EL EQUIPO)</div>
+            <div style={{ display:'grid', gridTemplateColumns:'150px 1fr auto', gap:'8px', alignItems:'end' }}>
+              <div>
+                <div style={LABEL}>FECHA *</div>
+                <input type="date" value={feriado.fecha} min={hoy} onChange={e => setFeriado(f => ({ ...f, fecha: e.target.value }))} />
+              </div>
+              <div>
+                <div style={LABEL}>DESCRIPCIÓN *</div>
+                <input type="text" value={feriado.descripcion} maxLength={80} onChange={e => setFeriado(f => ({ ...f, descripcion: e.target.value }))}
+                  placeholder="Ej. Día de la Revolución" />
+              </div>
+              <button onClick={guardarFeriado} disabled={!puedeFeriado}
+                style={{ padding:'7px 12px', borderRadius:'5px', border:'0.5px solid var(--border2)', background:'none', color:'var(--text)', fontSize:'9px', fontFamily:'var(--mono)', opacity: puedeFeriado ? 1 : 0.4 }}>
+                AGREGAR
+              </button>
+            </div>
+            {feriadoRepetido && <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--red)' }}>Ese día ya es feriado.</div>}
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              {proximosFeriados.length === 0 && <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted)' }}>Sin feriados desde hoy.</div>}
+              {proximosFeriados.map(f => (
+                <div key={f.fecha} style={FILA_LISTA}>
+                  <span style={{ color:'var(--text)', flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {DIAS[diaSemanaIso(f.fecha) - 1] ?? ''} {ddmm(f.fecha)}/{f.fecha.slice(0, 4)} · {f.descripcion}
+                  </span>
+                  <button onClick={() => quitarFeriado(f)} style={BOTON_CHICO}>QUITAR</button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {error && <div style={CAJA_ERROR}>{error}</div>}
+
+        <div style={{ display:'flex', justifyContent:'flex-end' }}>
+          <button onClick={onCerrar}
+            style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid var(--border)', background:'none', color:'var(--muted2)', fontSize:'10px', fontFamily:'var(--mono)' }}>
+            CERRAR
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 async function cargarSemana(lun, hoy) {
   const vie = sumarDias(lun, 4)
-  const [integrantes, capacidad, inhabiles, carga, cargaActividad, parametros, atrasadas, actSemana] = await Promise.all([
+  const [integrantes, capacidad, inhabiles, ausencias, carga, cargaActividad, parametros, atrasadas, actSemana] = await Promise.all([
     consultar(supabase.from('plan_integrantes').select('profile_id, orden, perfil:profiles(id,nombre,iniciales)').eq('activo', true).order('orden')),
     consultar(supabase.from('plan_capacidad').select('dia_semana,jornadas,etiqueta,vigente_desde,vigente_hasta')),
     consultar(supabase.from('plan_dias_inhabiles').select('fecha,descripcion').gte('fecha', lun).lte('fecha', vie)),
+    consultar(supabase.from('plan_ausencias').select('profile_id,fecha,fraccion,tipo,nota').gte('fecha', lun).lte('fecha', vie)),
     consultar(supabase.from('plan_carga_uo').select('uo_id,fecha,responsable_id,jornadas').gte('fecha', lun).lte('fecha', vie)),
     consultar(supabase.from('plan_carga_actividad').select('actividad_id,fecha,responsable_id,jornadas,actividad:actividades_uo(uo_id)').gte('fecha', lun).lte('fecha', vie)),
     consultar(supabase.from('plan_parametros').select('clave,valor,vigente_desde,vigente_hasta').eq('clave', 'jornada_minima_uo')),
@@ -400,7 +658,7 @@ async function cargarSemana(lun, hoy) {
     ])
   }
 
-  return { lunes: lun, integrantes, capacidad, inhabiles, carga, cargaVal, parametros, actividades, uos }
+  return { lunes: lun, integrantes, capacidad, inhabiles, ausencias, carga, cargaVal, parametros, actividades, uos }
 }
 
 function Encabezado({ dias, etiquetaDia, hoy }) {
@@ -430,10 +688,28 @@ function CeldaPersona({ p, filas }) {
   )
 }
 
-function FondoDias({ dias, hoy, filas }) {
-  return dias.map((f, i) => (
-    <div key={f} style={{ gridColumn:i + 2, gridRow:`1 / span ${filas}`, borderLeft:'0.5px solid var(--border2)', background: f === hoy ? 'rgba(249,115,22,0.04)' : 'none' }} />
-  ))
+// Fondo rayado y etiqueta abajo cuando la persona está ausente ese día
+const FONDO_AUSENCIA = 'repeating-linear-gradient(135deg, rgba(148,163,184,0.10) 0 6px, transparent 6px 12px)'
+
+function EtiquetaAusencia({ a }) {
+  return (
+    <span title={a.nota ? `${textoAusencia(a)} · ${a.nota}` : textoAusencia(a)}
+      style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'1px 5px', borderRadius:'3px', background:'rgba(148,163,184,0.16)', color:'var(--muted2)', letterSpacing:'0.06em', whiteSpace:'nowrap' }}>
+      {textoAusencia(a).toUpperCase()}
+    </span>
+  )
+}
+
+function FondoDias({ dias, hoy, filas, ausencias = [] }) {
+  return dias.map((f, i) => {
+    const a = ausencias[i]
+    return (
+      <div key={f} style={{ gridColumn:i + 2, gridRow:`1 / span ${filas}`, borderLeft:'0.5px solid var(--border2)', display:'flex', alignItems:'flex-end', justifyContent:'flex-end', padding:'4px 6px',
+        background: a ? FONDO_AUSENCIA : f === hoy ? 'rgba(249,115,22,0.04)' : 'none' }}>
+        {a && <EtiquetaAusencia a={a} />}
+      </div>
+    )
+  })
 }
 
 function TarjetaUo({ it, uo, pasos, hoy, onAbrir, onReprogramar }) {
@@ -540,6 +816,7 @@ export default function PlanSemanal() {
   const [datos, setDatos] = useState(null)
   const [recarga, setRecarga] = useState(0)
   const [reprogramar, setReprogramar] = useState(null)  // { uoId, actividadId }
+  const [verAusencias, setVerAusencias] = useState(false)
 
   useEffect(() => {
     if (profile && profile.rol !== 'coordinador') navigate('/')
@@ -571,6 +848,12 @@ export default function PlanSemanal() {
       capDia[f] = inhabil[f] ? 0 : Number(fila?.jornadas ?? 0)
       etiquetaDia[f] = inhabil[f] ? 'Inhábil · ' + inhabil[f] : (fila?.etiqueta || null)
     }
+
+    // Ausencias de la semana por persona y día; la ausencia ocupa su parte de la
+    // capacidad del día (igual que public.plan_carga_persona en la base)
+    const ausencias = Object.fromEntries((datos.ausencias || []).map(a => [`${a.profile_id}|${a.fecha}`, a]))
+    const ausenciaDe = (persona, f) => ausencias[`${persona}|${f}`] || null
+    const capPersona = (persona, f) => capDia[f] * (1 - Number(ausenciaDe(persona, f)?.fraccion ?? 0))
 
     const uoPorId = Object.fromEntries((datos.uos || []).map(u => [u.id, u]))
     const actividades = (datos.actividades || []).filter(a => uoPorId[a.uo_id])
@@ -612,6 +895,7 @@ export default function PlanSemanal() {
       return {
         persona: p,
         items,
+        ausencias: dias.map(f => ausenciaDe(p.id, f)),
         carriles: Math.max(finCarril.length, 1),
         planeadas: actsSemana.length,
         hechas: actsSemana.filter(a => a.completada_en).length,
@@ -633,7 +917,7 @@ export default function PlanSemanal() {
         const refs = filas
           .filter(c => uoPorId[c.uo_id])
           .map(c => uoPorId[c.uo_id].referencia_operativa + (c.validacion ? ' (val)' : ''))
-        return { fecha: f, j, cap: capDia[f], refs }
+        return { fecha: f, j, cap: capPersona(p.id, f), refs, ausencia: ausenciaDe(p.id, f) }
       })
       const j = celdas.reduce((s, c) => s + c.j, 0)
       const cap = celdas.reduce((s, c) => s + c.cap, 0)
@@ -653,6 +937,19 @@ export default function PlanSemanal() {
           }))
           .sort((a, b) => b.libre - a.libre)
       : null
+
+    // Carga que quedó en un día de ausencia y ya no cabe (no se mueve sola: REPROGRAMAR).
+    // Una fila por persona, día y UO; la validación se reprograma por su actividad.
+    const cargaEnAusencia = filasCarga.flatMap(f => f.celdas
+      .filter(c => c.ausencia && c.j > c.cap + EPS)
+      .flatMap(c => cargaTotal
+        .filter(r => r.responsable_id === f.persona.id && r.fecha === c.fecha && uoPorId[r.uo_id])
+        .map(r => ({
+          key: `${f.persona.id}|${c.fecha}|${r.uo_id}|${r.validacion ? 'v' : 'u'}`,
+          persona: f.persona, fecha: c.fecha, ausencia: c.ausencia,
+          uoId: r.uo_id, uo: uoPorId[r.uo_id], validacion: Boolean(r.validacion),
+          actividadId: r.validacion ? r.actividad_id : null, jornadas: Number(r.jornadas),
+        }))))
 
     // Atrasos (de cualquier semana) de los integrantes
     const atrasos = actividades
@@ -678,7 +975,7 @@ export default function PlanSemanal() {
     const reprogramables = new Set(actividades.filter(a => !a.completada_en && a.fecha_programada).map(a => a.uo_id))
     const nombres = Object.fromEntries(integrantes.map(p => [p.id, p.nombre]))
 
-    return { dias, capDia, etiquetaDia, uoPorId, pasosPorUo, filasPlan, filasCarga, dondeAsignar, atrasos, kpis, reprogramables, nombres }
+    return { dias, capDia, etiquetaDia, uoPorId, pasosPorUo, filasPlan, filasCarga, dondeAsignar, cargaEnAusencia, atrasos, kpis, reprogramables, nombres, integrantes }
   }, [datos, lunes, hoy])
 
   // Secciones que se muestran solo si sus consultas respondieron
@@ -706,6 +1003,7 @@ export default function PlanSemanal() {
       plan: okPlan ? m.filasPlan.map(f => ({
         nombre: f.persona.nombre,
         carriles: f.carriles,
+        ausencias: f.ausencias.map(a => (a ? textoAusencia(a) : null)),
         hechas: f.hechas, planeadas: f.planeadas, atrasadas: f.atrasadas,
         items: f.items.map(it => {
           const uo = m.uoPorId[it.uoId]
@@ -735,7 +1033,8 @@ export default function PlanSemanal() {
         nombre: f.persona.nombre,
         celdas: f.celdas.map(c => {
           const e = estadoCarga(c.j, c.cap)
-          return { texto: `${fmt(c.j)} / ${fmt(c.cap)}`, j: c.j, cap: c.cap, estado: e.txt, tono: e.tono, refs: c.refs }
+          return { texto: `${fmt(c.j)} / ${fmt(c.cap)}`, j: c.j, cap: c.cap, estado: e.txt, tono: e.tono, refs: c.refs,
+            ausencia: c.ausencia ? textoAusencia(c.ausencia) : null }
         }),
         total: {
           texto: `${fmt(f.j)} / ${fmt(f.cap)}`, j: f.j, cap: f.cap, tono: estadoCarga(f.j, f.cap).tono,
@@ -776,6 +1075,12 @@ export default function PlanSemanal() {
             style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid var(--border2)', background:'none', color:'var(--muted2)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer' }}>
             SEMANA SIGUIENTE →
           </button>
+          {esCoordinador && (
+            <button onClick={() => setVerAusencias(true)} disabled={loading || !m || !datos?.capacidad}
+              style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid rgba(139,92,246,0.35)', background:'rgba(139,92,246,0.08)', color:'var(--accent-a)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer', opacity: loading || !m || !datos?.capacidad ? 0.4 : 1 }}>
+              AUSENCIAS Y FERIADOS
+            </button>
+          )}
           <button onClick={descargarPDF} disabled={loading || !m}
             style={{ padding:'7px 14px', borderRadius:'5px', border:'0.5px solid var(--border2)', background:'none', color:'var(--muted2)', fontSize:'9px', fontFamily:'var(--mono)', cursor:'pointer', opacity: loading || !m ? 0.4 : 1 }}>
             DESCARGAR PDF
@@ -810,6 +1115,34 @@ export default function PlanSemanal() {
             </div>
           )}
 
+          {datos.ausencias === null && (
+            <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)' }}>
+              No se pudieron leer las ausencias: la capacidad mostrada no las descuenta.
+            </div>
+          )}
+
+          {okCarga && m.cargaEnAusencia.length > 0 && (
+            <div className="glass" style={{ borderRadius:'10px', padding:'12px 16px', display:'flex', flexDirection:'column', gap:'6px', borderLeft:'2px solid var(--orange)' }}>
+              <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--orange)', letterSpacing:'0.12em' }}>
+                CARGA EN DÍAS DE AUSENCIA · {m.cargaEnAusencia.length} · NO SE MUEVE SOLA: CORRÍGELA CON REPROGRAMAR
+              </div>
+              {m.cargaEnAusencia.map(c => (
+                <div key={c.key} style={{ display:'flex', alignItems:'center', gap:'10px', fontFamily:'var(--mono)', fontSize:'9px' }}>
+                  <span style={{ minWidth:0, flex:1 }}>
+                    {c.persona.nombre} · {DIAS[diaSemanaIso(c.fecha) - 1]} {ddmm(c.fecha)} ({textoAusencia(c.ausencia)}) ·{' '}
+                    <span style={{ color:'var(--orange)' }}>{c.uo.referencia_operativa}</span>{c.validacion ? ' (validación)' : ''} · {fmt(c.jornadas)} jornadas
+                  </span>
+                  {esCoordinador && (
+                    <button onClick={() => setReprogramar({ uoId: c.uoId, actividadId: c.actividadId })}
+                      style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'4px 8px', borderRadius:'4px', border:'0.5px solid rgba(139,92,246,0.35)', background:'rgba(139,92,246,0.08)', color:'var(--accent-a)', cursor:'pointer', flexShrink:0 }}>
+                      REPROGRAMAR
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           {vista === 'plan' && okPlan && (
             <>
               <div className="glass" style={{ borderRadius:'var(--radius-lg)', overflowX:'auto' }}>
@@ -821,7 +1154,7 @@ export default function PlanSemanal() {
                   {m.filasPlan.map(f => (
                     <div key={f.persona.id} style={{ display:'grid', gridTemplateColumns:COLUMNAS, gridAutoRows:'minmax(64px, auto)', borderBottom:'0.5px solid var(--border2)' }}>
                       <CeldaPersona p={f.persona} filas={f.carriles} />
-                      <FondoDias dias={m.dias} hoy={hoy} filas={f.carriles} />
+                      <FondoDias dias={m.dias} hoy={hoy} filas={f.carriles} ausencias={f.ausencias} />
                       {f.items.map(it => it.tipo === 'uo'
                         ? <TarjetaUo key={it.persona + it.uoId} it={it} uo={m.uoPorId[it.uoId]} pasos={m.pasosPorUo[it.uoId] || {}} hoy={hoy}
                             onAbrir={() => navigate('/backlog/' + it.uoId)}
@@ -907,7 +1240,8 @@ export default function PlanSemanal() {
                         {f.celdas.map((c, i) => {
                           const e = estadoCarga(c.j, c.cap)
                           return (
-                            <div key={c.fecha} style={{ gridColumn:i + 2, borderLeft:'0.5px solid var(--border2)', padding:'10px 12px', background: c.fecha === hoy ? 'rgba(249,115,22,0.04)' : 'none' }}>
+                            <div key={c.fecha} style={{ gridColumn:i + 2, borderLeft:'0.5px solid var(--border2)', padding:'10px 12px', background: c.ausencia ? FONDO_AUSENCIA : c.fecha === hoy ? 'rgba(249,115,22,0.04)' : 'none' }}>
+                              {c.ausencia && <div style={{ marginBottom:'4px' }}><EtiquetaAusencia a={c.ausencia} /></div>}
                               <div style={{ fontFamily:'var(--mono)', fontSize:'10px' }}>{fmt(c.j)} / {fmt(c.cap)}</div>
                               <Barra valor={c.j} total={c.cap} color={e.color} />
                               <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:e.color }}>{e.txt}</div>
@@ -965,6 +1299,16 @@ export default function PlanSemanal() {
           actividadInicial={reprogramar.actividadId}
           onCerrar={() => setReprogramar(null)}
           onGuardado={() => { setReprogramar(null); setRecarga(r => r + 1) }}
+        />
+      )}
+
+      {verAusencias && m && datos?.capacidad && (
+        <ModalAusencias
+          integrantes={m.integrantes}
+          capacidad={datos.capacidad}
+          hoy={hoy}
+          onCerrar={() => setVerAusencias(false)}
+          onCambio={() => setRecarga(r => r + 1)}
         />
       )}
     </div>
