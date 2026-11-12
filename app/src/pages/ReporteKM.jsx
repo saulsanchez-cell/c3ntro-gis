@@ -63,21 +63,14 @@ export default function ReporteKM() {
   }
 
   async function fetchData() {
-    let all = []
-    let from = 0
-    const size = 1000
-    while (true) {
-      const { data } = await supabase
-        .from('unidades_operativas')
-        .select('id, referencia_operativa, km_teoricos, tipo_proyecto, tipo_validacion, entidad_federativa, estado, digitalizador_id, analista_qa_id, created_at, fecha_entrega_programada, fecha_carga_final, digitalizador:profiles!digitalizador_id(nombre), analista_qa:profiles!analista_qa_id(nombre)')
-        .eq('es_historico', false)
-        .range(from, from + size - 1)
-      if (!data || data.length === 0) break
-      all = [...all, ...data]
-      if (data.length < size) break
-      from += size
-    }
-    setUos(all)
+    // Por bloques con orden estable: sin .order('id') los bloques podian repetir o perder UOs
+    const { data: uosData } = await leerTodas((desde, hasta) => supabase
+      .from('unidades_operativas')
+      .select('id, referencia_operativa, km_teoricos, tipo_proyecto, tipo_validacion, entidad_federativa, estado, digitalizador_id, analista_qa_id, created_at, fecha_entrega_programada, fecha_carga_final, digitalizador:profiles!digitalizador_id(nombre), analista_qa:profiles!analista_qa_id(nombre)')
+      .eq('es_historico', false)
+      .order('id')
+      .range(desde, hasta))
+    setUos(uosData || [])
 
     // Por bloques (lib/consultas); id desempata para que los bloques no se encimen
     const { data: cl } = await leerTodas((desde, hasta) => supabase

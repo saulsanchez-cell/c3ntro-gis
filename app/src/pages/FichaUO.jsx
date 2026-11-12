@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { hoyMexico } from '../lib/fechas'
+import { ENTIDADES } from '../lib/entidades'
 import { generarCertificado, generarCertificadoConectividad, generarPDFAsignacion, generarBitacoraUO } from '../lib/certificado'
 
 const FASES = ['Preparacion','Carga parcial','Carga completa']
@@ -89,7 +90,8 @@ export default function FichaUO() {
   const [asignacion, setAsignacion] = useState({
     digitalizador_id: '', analista_qa_id: '', prioridad: 'P3',
     link_archivos: '', observaciones: '', metodo_constructivo: '',
-    latitud: '', longitud: '', fecha_entrega_programada: '', fecha_no_antes_de: ''
+    latitud: '', longitud: '', fecha_entrega_programada: '', fecha_no_antes_de: '',
+    entidad_federativa: ''
   })
 
   useEffect(() => { fetchAll() }, [id])
@@ -183,6 +185,7 @@ export default function FichaUO() {
         longitud: uoData.longitud || '',
         fecha_entrega_programada: uoData.fecha_entrega_programada || '',
         fecha_no_antes_de: uoData.fecha_no_antes_de || '',
+        entidad_federativa: uoData.entidad_federativa || '',
       })
     }
     setLoading(false)
@@ -211,6 +214,8 @@ export default function FichaUO() {
       latitud: asignacion.latitud ? parseFloat(asignacion.latitud) : null,
       longitud: asignacion.longitud ? parseFloat(asignacion.longitud) : null,
       fecha_entrega_programada: asignacion.fecha_entrega_programada || null,
+      // Opcional: hay ordenes de trabajo sin entidad clara. Reporte KM agrupa por esta columna.
+      entidad_federativa: asignacion.entidad_federativa || null,
     }
     const asignaAhora = asignacion.digitalizador_id && !uo.fecha_asignacion
     if (asignaAhora) {
@@ -445,6 +450,9 @@ export default function FichaUO() {
               <span style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'2px 8px', borderRadius:'3px',
                 background: uo.prioridad==='P1' ? 'rgba(249,115,22,0.18)' : 'rgba(120,120,120,0.1)',
                 color: uo.prioridad==='P1' ? 'var(--orange)' : 'var(--muted2)' }}>{uo.prioridad}</span>
+              <span title="Entidad federativa (Reporte KM agrupa por ella)" style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'2px 8px', borderRadius:'3px',
+                background: uo.entidad_federativa ? 'rgba(120,120,120,0.15)' : 'rgba(239,68,68,0.1)',
+                color: uo.entidad_federativa ? 'var(--muted2)' : 'var(--red)' }}>{uo.entidad_federativa || 'Sin entidad'}</span>
             </div>
           </div>
           <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
@@ -779,6 +787,15 @@ export default function FichaUO() {
                     {/* Sin el digitalizador elegido, salvo que ya estuviera guardado así (UOs viejas) */}
                     {equipo.filter(p => p.id !== asignacion.digitalizador_id || p.id === uo.analista_qa_id)
                       .map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginBottom:'4px' }}>ENTIDAD FEDERATIVA</div>
+                  <select value={asignacion.entidad_federativa} onChange={e => setAsignacion(a => ({ ...a, entidad_federativa: e.target.value }))}>
+                    <option value="">Sin entidad</option>
+                    {/* Conserva un valor guardado que no esta en la lista (ej. Phoenix) */}
+                    {uo.entidad_federativa && !ENTIDADES.includes(uo.entidad_federativa) && <option value={uo.entidad_federativa}>{uo.entidad_federativa}</option>}
+                    {ENTIDADES.map(e => <option key={e} value={e}>{e}</option>)}
                   </select>
                 </div>
                 <div>
