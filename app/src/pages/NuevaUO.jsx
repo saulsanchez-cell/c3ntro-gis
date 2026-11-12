@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { ENTIDADES } from '../lib/entidades'
 
 const TIPOS_PROYECTO = ['Baseline','Active Line','Tikva','Enterprise','Data Center','IRU','Backbone','AsBuilt','Reingenieria']
 const TIPOS_INFRA = ['Backbone','Lateral','Drop','Long Haul','IRU','Inactivo','Jumper','Sin clasificar']
-const ENTIDADES = ['Aguascalientes','Baja California','Baja California Sur','Campeche','CDMX','Chiapas','Chihuahua','Coahuila','Colima','Durango','Estado de México','Guanajuato','Guerrero','Hidalgo','Jalisco','Michoacán','Morelos','Nayarit','Nuevo León','Oaxaca','Puebla','Querétaro','Quintana Roo','San Luis Potosí','Sinaloa','Sonora','Tabasco','Tamaulipas','Tlaxcala','Veracruz','Yucatán','Zacatecas']
 
 export default function NuevaUO() {
   const navigate = useNavigate()
