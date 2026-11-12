@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { leerTodas } from '../lib/consultas'
 
 const UMBRAL_SIN_AVANCE_DIAS = 2
 const UMBRAL_SLA_DIAS = 5
@@ -43,17 +44,21 @@ export default function Alertas() {
     setLoading(true)
     const hoy = new Date()
     const [{ data: uos }, { data: logs }, { data: perfiles }, { data: respuestas }] = await Promise.all([
-      supabase.from('unidades_operativas')
+      // Por bloques (lib/consultas): la API corta en 1000 filas sin avisar
+      leerTodas((desde, hasta) => supabase.from('unidades_operativas')
         .select('*, digitalizador:profiles!digitalizador_id(id,nombre,iniciales), analista_qa:profiles!analista_qa_id(id,nombre,iniciales)')
         .eq('es_historico', false)
-        .in('estado', ['Asignada','En Proceso','En Validacion','Bloqueada']),
-      supabase.from('logs_actividad')
+        .in('estado', ['Asignada','En Proceso','En Validacion','Bloqueada'])
+        .order('id').range(desde, hasta)),
+      leerTodas((desde, hasta) => supabase.from('logs_actividad')
         .select('uo_id, fecha, porcentaje_avance, usuario_id')
-        .order('fecha', { ascending: false }),
+        .order('fecha', { ascending: false }).order('id')
+        .range(desde, hasta)),
       supabase.from('profiles').select('*').eq('activo', true).neq('rol', 'coordinador'),
-      supabase.from('checklist_respuestas')
+      leerTodas((desde, hasta) => supabase.from('checklist_respuestas')
         .select('*, item:checklist_items(nombre, seccion, familia)')
-        .not('observacion_descripcion', 'is', null),
+        .not('observacion_descripcion', 'is', null)
+        .order('id').range(desde, hasta)),
     ])
     const ultimoLogPorUO = {}
     ;(logs || []).forEach(l => { if (!ultimoLogPorUO[l.uo_id]) ultimoLogPorUO[l.uo_id] = l.fecha })

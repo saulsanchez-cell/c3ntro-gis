@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { hoyMexico } from '../lib/fechas'
+import { leerTodas } from '../lib/consultas'
 import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts'
 
 const TIPOS_FIJOS = ['Tikva', 'Baseline', 'Active Line']
@@ -78,10 +79,13 @@ export default function ReporteKM() {
     }
     setUos(all)
 
-    const { data: cl } = await supabase
+    // Por bloques (lib/consultas); id desempata para que los bloques no se encimen
+    const { data: cl } = await leerTodas((desde, hasta) => supabase
       .from('checklist_resultados')
       .select('uo_id, score_porcentaje')
       .order('created_at', { ascending: false })
+      .order('id')
+      .range(desde, hasta))
     setChecklists(cl || [])
 
     const { data: metasData } = await supabase.from('metas_proyecto').select('*')

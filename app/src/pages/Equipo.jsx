@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { hoyMexico } from '../lib/fechas'
 import { calcularKpis, sumarDias } from '../lib/kpisEvaluacion'
+import { leerTodas } from '../lib/consultas'
 import { generarPDFEvaluacion } from '../lib/certificado'
 
 const ACTIVOS = ['Asignada','En Proceso','En Validacion']
@@ -95,8 +96,11 @@ export default function Equipo() {
   async function fetchData() {
     const [{ data: perfiles }, { data: uosData }, { data: checklistData }] = await Promise.all([
       supabase.from('profiles').select('*').eq('activo', true),
-      supabase.from('unidades_operativas').select('id,estado,prioridad,referencia_operativa,nombre,digitalizador_id,analista_qa_id,sla_validacion,dias_proceso,no_revision,fecha_asignacion,fecha_carga_final,fecha_entrega_programada,km_teoricos').eq('es_historico', false),
-      supabase.from('checklist_resultados').select('*'),
+      // Más de 1000 filas: se leen por bloques (lib/consultas)
+      leerTodas((desde, hasta) => supabase.from('unidades_operativas')
+        .select('id,estado,prioridad,referencia_operativa,nombre,digitalizador_id,analista_qa_id,sla_validacion,dias_proceso,no_revision,fecha_asignacion,fecha_carga_final,fecha_entrega_programada,km_teoricos')
+        .eq('es_historico', false).order('id').range(desde, hasta)),
+      leerTodas((desde, hasta) => supabase.from('checklist_resultados').select('*').order('id').range(desde, hasta)),
     ])
     setEquipo(perfiles || [])
     setUos(uosData || [])
