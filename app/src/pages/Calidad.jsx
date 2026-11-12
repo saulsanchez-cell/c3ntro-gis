@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { leerTodas } from '../lib/consultas'
 
 const ICONS = {
   clipboard: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="5" y="4" width="14" height="17" rx="1.5"/><path d="M9 4V3a1 1 0 011-1h4a1 1 0 011 1v1"/><path d="M9 11h6M9 15h6"/></svg>,
@@ -54,11 +55,15 @@ export default function Calidad() {
   const [totalRevisiones, setTotalRevisiones] = useState(0)
 
   async function fetchData() {
+    // Más de 1000 filas (11 452 respuestas el 2026-11-12): se leen por bloques
+    // (lib/consultas). De las respuestas solo se piden los campos que se usan.
     const [{ data: respuestas }, { data: resultados }] = await Promise.all([
-      supabase.from('checklist_respuestas')
-        .select('*, item:checklist_items(nombre, seccion, familia, peso)'),
-      supabase.from('checklist_resultados')
-        .select('*, uo:unidades_operativas(tipo_proyecto, referencia_operativa)'),
+      leerTodas((desde, hasta) => supabase.from('checklist_respuestas')
+        .select('id, item_id, resultado_id, cumplimiento_porcentaje, item:checklist_items(nombre, seccion, familia, peso)')
+        .order('id').range(desde, hasta)),
+      leerTodas((desde, hasta) => supabase.from('checklist_resultados')
+        .select('*, uo:unidades_operativas(tipo_proyecto, referencia_operativa)')
+        .order('id').range(desde, hasta)),
     ])
 
     setTotalRevisiones((resultados || []).length)

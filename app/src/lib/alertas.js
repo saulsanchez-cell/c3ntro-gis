@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { leerTodas } from './consultas'
 
 export const UMBRAL_SIN_AVANCE_DIAS = 2
 export const UMBRAL_SLA_DIAS = 5
@@ -8,13 +9,17 @@ export async function contarAlertasActivas() {
   const hoy = new Date()
 
   const [{ data: uos }, { data: logs }, { data: perfiles }, { data: respuestas }] = await Promise.all([
-    supabase.from('unidades_operativas')
+    // Por bloques (lib/consultas): la API corta en 1000 filas sin avisar
+    leerTodas((desde, hasta) => supabase.from('unidades_operativas')
       .select('id, sla_validacion, fecha_asignacion, digitalizador_id')
       .eq('es_historico', false)
-      .in('estado', ['Asignada','En Proceso','En Validacion','Bloqueada']),
-    supabase.from('logs_actividad').select('uo_id, fecha').order('fecha', { ascending: false }),
+      .in('estado', ['Asignada','En Proceso','En Validacion','Bloqueada'])
+      .order('id').range(desde, hasta)),
+    leerTodas((desde, hasta) => supabase.from('logs_actividad').select('uo_id, fecha')
+      .order('fecha', { ascending: false }).order('id').range(desde, hasta)),
     supabase.from('profiles').select('id').eq('activo', true).neq('rol', 'coordinador'),
-    supabase.from('checklist_respuestas').select('item_id, cumplimiento_porcentaje').not('observacion_descripcion', 'is', null),
+    leerTodas((desde, hasta) => supabase.from('checklist_respuestas').select('item_id, cumplimiento_porcentaje')
+      .not('observacion_descripcion', 'is', null).order('id').range(desde, hasta)),
   ])
 
   const ultimoLogPorUO = {}
