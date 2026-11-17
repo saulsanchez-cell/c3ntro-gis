@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import MapaAvance from '../components/MapaAvance'
 import { contarAlertasActivas } from '../lib/alertas'
+import PendientesHoy from '../components/PendientesHoy'
 
 const ESTADOS = ['Pendiente','Asignada','En Proceso','En Validacion','Validada','Rechazada','Cerrada']
 const ESTADO_COLOR = { Pendiente:'var(--muted2)', Asignada:'var(--orange)', 'En Proceso':'var(--blue)', 'En Validacion':'var(--accent-a)', Validada:'var(--green)', Rechazada:'var(--red)', 'En Correccion':'var(--yellow)', Cerrada:'var(--accent-b)' }
@@ -119,21 +120,7 @@ export default function Overview() {
   const [sparkScore, setSparkScore] = useState([])
   const [actividad, setActividad] = useState([])
   const [loading, setLoading] = useState(true)
-  const [misUOs, setMisUOs] = useState([])
   const [uosConCoords, setUosConCoords] = useState([])
-
-  const paraCargar = misUOs.filter(u => u.digitalizador_id === profile.id && (u.estado === 'Asignada' || u.estado === 'En Proceso' || u.estado === 'En Correccion'))
-  const paraValidar = misUOs.filter(u => u.analista_qa_id === profile.id && u.estado === 'En Validacion')
-
-  async function fetchMisUOs() {
-    const { data } = await supabase
-      .from('unidades_operativas')
-      .select('id, referencia_operativa, nombre, tipo_proyecto, prioridad, link_archivos, observaciones, digitalizador_id, analista_qa_id, estado')
-      .or(`digitalizador_id.eq.${profile.id},analista_qa_id.eq.${profile.id}`)
-      .in('estado', ['Asignada', 'En Proceso', 'En Validacion', 'En Correccion'])
-      .eq('es_historico', false)
-    setMisUOs(data || [])
-  }
 
   async function fetchData() {
     let allUos = []
@@ -215,7 +202,6 @@ export default function Overview() {
 
   // Debajo de las funciones que llaman (react-hooks/immutability); mismo orden que antes
   useEffect(() => { fetchData(); fetchComparativas(); fetchActividad() }, [])
-  useEffect(() => { if (profile?.id) fetchMisUOs() }, [profile])
 
   const avance = stats.total > 0 ? ((stats.validadas/stats.total)*100) : 0
   const avanceMesPasadoCalc = (stats.total - (comp.nuevasEsteMes||0)) > 0
@@ -243,6 +229,8 @@ export default function Overview() {
 
   return (
     <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+      <PendientesHoy profile={profile} />
+
       {uosConCoords.length > 0 && (
         <div className="glass" style={{ borderRadius:'10px', padding:'14px 16px' }}>
           <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.14em', marginBottom:'10px', display:'flex', justifyContent:'space-between' }}>
@@ -250,60 +238,6 @@ export default function Overview() {
             <span style={{ color:'var(--muted2)' }}>{uosConCoords.length} UOs con coordenadas</span>
           </div>
           <MapaAvance uos={uosConCoords} />
-        </div>
-      )}
-
-      {(paraCargar.length > 0 || paraValidar.length > 0) && profile?.rol !== 'coordinador' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-          {paraCargar.length > 0 && (
-            <div style={{ background:'rgba(34,197,94,0.08)', border:'0.5px solid rgba(34,197,94,0.3)', borderRadius:'8px', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'10px' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'var(--green)', flexShrink:0 }} />
-                <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--green)', letterSpacing:'0.08em' }}>PARA CARGAR · {paraCargar.length} UO{paraCargar.length > 1 ? 's' : ''}</span>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                {paraCargar.map(u => (
-                  <div key={u.id} onClick={() => navigate('/backlog/'+u.id)}
-                    style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--surface2)', border:'0.5px solid var(--border2)', borderLeft:'2px solid var(--green)', borderRadius:'6px', padding:'8px 12px', cursor:'pointer' }}>
-                    <div>
-                      <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--green)', marginBottom:'2px' }}>{u.referencia_operativa}</div>
-                      <div style={{ fontSize:'10px', color:'var(--text)' }}>{u.nombre}</div>
-                      {u.observaciones && <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginTop:'3px' }}>{u.observaciones}</div>}
-                    </div>
-                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px' }}>
-                      <span style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'2px 6px', borderRadius:'3px', background: u.prioridad==='P1' ? 'rgba(249,115,22,0.2)' : 'rgba(120,120,120,0.1)', color: u.prioridad==='P1' ? 'var(--orange)' : 'var(--muted2)' }}>{u.prioridad}</span>
-                      {u.estado === 'En Correccion' && <span style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'2px 6px', borderRadius:'3px', background:'rgba(239,68,68,0.12)', color:'var(--red)' }}>CORRECCION</span>}
-                      {u.link_archivos && <a href={u.link_archivos} target="_blank" rel="noreferrer" style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--blue)', textDecoration:'underline', fontWeight:'500' }} onClick={e => e.stopPropagation()}>VER ARCHIVOS</a>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {paraValidar.length > 0 && (
-            <div style={{ background:'rgba(250,204,21,0.08)', border:'0.5px solid rgba(250,204,21,0.3)', borderRadius:'8px', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'10px' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'var(--yellow)', flexShrink:0 }} />
-                <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--yellow)', letterSpacing:'0.08em' }}>PARA VALIDAR · {paraValidar.length} UO{paraValidar.length > 1 ? 's' : ''}</span>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                {paraValidar.map(u => (
-                  <div key={u.id} onClick={() => navigate('/backlog/'+u.id)}
-                    style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--surface2)', border:'0.5px solid var(--border2)', borderLeft:'2px solid var(--yellow)', borderRadius:'6px', padding:'8px 12px', cursor:'pointer' }}>
-                    <div>
-                      <div style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--yellow)', marginBottom:'2px' }}>{u.referencia_operativa}</div>
-                      <div style={{ fontSize:'10px', color:'var(--text)' }}>{u.nombre}</div>
-                      {u.observaciones && <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted2)', marginTop:'3px' }}>{u.observaciones}</div>}
-                    </div>
-                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px' }}>
-                      <span style={{ fontFamily:'var(--mono)', fontSize:'8px', padding:'2px 6px', borderRadius:'3px', background: u.prioridad==='P1' ? 'rgba(249,115,22,0.2)' : 'rgba(120,120,120,0.1)', color: u.prioridad==='P1' ? 'var(--orange)' : 'var(--muted2)' }}>{u.prioridad}</span>
-                      {u.link_archivos && <a href={u.link_archivos} target="_blank" rel="noreferrer" style={{ fontFamily:'var(--mono)', fontSize:'10px', color:'var(--blue)', textDecoration:'underline', fontWeight:'500' }} onClick={e => e.stopPropagation()}>VER ARCHIVOS</a>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
