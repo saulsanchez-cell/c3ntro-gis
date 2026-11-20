@@ -864,13 +864,24 @@ export function generarPDFPlanSemanal({ semana, lunes, dias, kpis, plan, atrasos
 
   function tarjeta(it, x, w, cy) {
     if (it.tipo !== 'uo') {
-      setDraw(COLORS.gray)
+      // Validación: punteada; verde con VALIDADA cuando ya se validó, roja si va atrasada
+      const hecha = it.estado === 'hecha', atrasada = it.estado === 'atrasada'
+      const color = hecha ? COLORS.green : atrasada ? COLORS.red : COLORS.gray
+      if (hecha) {
+        setFill([240, 253, 244])
+        doc.roundedRect(x, cy, w, CARD_H, 2, 2, 'F')
+      }
+      setDraw(color)
       doc.setLineWidth(0.6)
       doc.setLineDashPattern([2, 2], 0)
       doc.roundedRect(x, cy, w, CARD_H, 2, 2, 'S')
       doc.setLineDashPattern([], 0)
+      const etiqueta = hecha ? 'VALIDADA' : atrasada ? 'ATRASADA' : ''
+      fuente('bold', 5.5, color)
+      const anchoEtiqueta = etiqueta ? doc.getTextWidth(etiqueta) + 6 : 0
+      if (etiqueta) doc.text(etiqueta, x + w - 4, cy + 9, { align: 'right' })
       fuente('bold', 6.5, COLORS.gray)
-      texto(recortar(it.referencia, w - 8), x + 4, cy + 9)
+      texto(recortar(it.referencia, w - 8 - anchoEtiqueta), x + 4, cy + 9)
       fuente('normal', 6.5, COLORS.gray)
       texto(recortar(it.nombre, w - 8), x + 4, cy + 18)
       return
@@ -1007,7 +1018,7 @@ export function generarPDFPlanSemanal({ semana, lunes, dias, kpis, plan, atrasos
       'Cuadritos en orden: insumos, preparacion (Vertex), carga en Vetro, ajustes y autorrevision en Vetro',
       'aj = fecha ajustada a mano',
       'ENTREGA dd/mm = la ultima actividad cae despues de la entrega programada',
-      'Punteada = validacion',
+      'Punteada = validacion (verde y VALIDADA si ya se valido)',
       'Fondo gris = ausencia de la persona',
     ]
     fuente('normal', 6.5, COLORS.gray)
