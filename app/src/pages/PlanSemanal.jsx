@@ -772,13 +772,13 @@ function TarjetaValidacion({ it, uo, hoy, onAbrir, onReprogramar }) {
   return (
     <div onClick={onAbrir} title={`${it.act.nombre} · ${ddmm(it.act.fecha_programada)} · se completa al validar en el checklist`}
       style={{ gridColumn:`${it.ini + 2} / ${it.fin + 3}`, gridRow:it.carril + 1, position:'relative', zIndex:1, minWidth:0, margin:'4px 6px', cursor:'pointer',
-        border:'1px dashed ' + color, borderRadius:'6px', padding:'6px 8px' }}>
+        border:'1px dashed ' + color, borderRadius:'6px', padding:'6px 8px', background: e === 'hecha' ? 'rgba(34,197,94,0.08)' : 'none' }}>
       <div style={{ display:'flex', alignItems:'center', gap:'6px', minWidth:0 }}>
         <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--muted2)', flexShrink:0 }}>{uo.referencia_operativa}</span>
         {e !== 'pendiente' && (
           <span style={{ fontFamily:'var(--mono)', fontSize:'7px', padding:'1px 5px', borderRadius:'3px', flexShrink:0,
             background: e === 'hecha' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)', color }}>
-            {e === 'hecha' ? 'HECHA' : 'ATRASADA'}
+            {e === 'hecha' ? 'VALIDADA' : 'ATRASADA'}
           </span>
         )}
         {it.act.fecha_origen === 'ajustada' && (
@@ -1008,7 +1008,7 @@ export default function PlanSemanal() {
         items: f.items.map(it => {
           const uo = m.uoPorId[it.uoId]
           const base = { tipo: it.tipo, ini: it.ini, fin: it.fin, carril: it.carril, referencia: uo.referencia_operativa }
-          if (it.tipo !== 'uo') return { ...base, nombre: it.act.nombre }
+          if (it.tipo !== 'uo') return { ...base, nombre: it.act.nombre, estado: estadoPaso(it.act, hoy) }
           const r = resumenTarjeta(uo, m.pasosPorUo[it.uoId] || {}, hoy)
           return {
             ...base,
