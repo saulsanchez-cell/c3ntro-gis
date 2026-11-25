@@ -1117,7 +1117,7 @@ export function generarPDFPlanSemanal({ semana, lunes, dias, kpis, plan, atrasos
     y += 14
 
     if (dondeAsignar) {
-      titulo('DONDE ASIGNAR MAS TRABAJO')
+      titulo('DONDE ASIGNAR MAS TRABAJO · DE HOY EN ADELANTE')
       y += 2
       for (const d of dondeAsignar) {
         asegurar(18)

@@ -68,6 +68,20 @@ Reglas:
   - Huellas: `plan_carga_persona` `53007a90297d5d35b9718b1f966d7554` y `plan_ausencia_persona` `715a3fcc727396b1fbc11f356f9eba7b`.
   - No cambian `plan_capacidad_dia` (es de todo el equipo), `plan_sumar_dias_habiles` ni `reprogramar_actividad`. La carga ya programada en un día de ausencia no se mueve sola: la app avisa ("CARGA EN DÍAS DE AUSENCIA") y se corrige con REPROGRAMAR.
   - KPIs de evaluación: un día de ausencia completa no cuenta en el registro diario ni en los plazos de corrección y liberación de esa persona.
+- Recalibración (`db-changes/2026-11-25_plan-recalibracion_*`), aplicada en SIGOprueba y producción el 2026-11-25, tras un mes de plan (lo acordado con Gerencia el 2026-11-09):
+  - Desde el 2026-11-26: Mixto 35, Subterráneo 35 y Aéreo 60 km por jornada, y `jornada_minima_uo` 0.33. Antes: 5, 17.5, 30 y 0.5. Las filas viejas se cerraron con `vigente_hasta` = 2026-11-25; no se borraron.
+  - No cambian `jornadas_pasos_1_3_uo_larga` (1.0) ni `jornadas_validacion_uo` (0.5).
+  - Los días pasados no se reescriben: el PDF del plan y los KPIs se calculan en vivo desde `plan_carga_uo` y cambiarían reportes ya enviados.
+  - En producción se borró a mano la carga desde el 2026-11-26 de 3 UOs terminadas (2025-DUR-FED-127, 2025-SIN-FED-125 y 2025-SIN-FED-124; 22.42 jornadas). Esas no están en `plan_carga_liberada`.
+  - Solo Miguel, Uziel y Ademir están en el plan. Las UOs de otros usuarios (Angel, Martin, Jorge) son cargas a Vetro del coordinador.
+- Liberar carga al terminar (`db-changes/2026-11-25_plan-liberar-carga_*`), aplicado en SIGOprueba y producción el 2026-11-25:
+  - Al completar el último de los 4 pasos, `marcar_actividad` borra la carga de la UO desde mañana (`fecha > plan_hoy()`) y la anota en `plan_carga_liberada` (`movimiento` = 'liberada'). La de hoy y la de días pasados se queda, porque es el crédito del KPI de producción. No cambian las fechas de los pasos ni la validación.
+  - `desmarcar_actividad` devuelve al digitalizador actual la carga liberada que siga siendo de mañana en adelante ('devuelta'). La de días pasados no regresa: se usa REPROGRAMAR.
+  - `plan_carga_liberada`: solo la escriben las funciones; `authenticated` solo lee.
+  - `plan_inconsistencias()` no revisa R1 (sin carga), R2 ni R4 en las UOs con todos los pasos completados.
+  - Huellas: `marcar_actividad` `a4ae7396e16ac1b76340de3ce436aec1`, `desmarcar_actividad` `5f9dc13ccd46630f0d1202b1bb4e3a97` y `plan_inconsistencias` `e5509825b1b0dc8e41b112055b607e9b`.
+  - Frontend (mismo PR): en la vista Carga, Libre y Sobrecarga, y "Dónde asignar" (pantalla y PDF), cuentan solo de hoy en adelante. Los días pasados se ven atenuados.
+  - Pendiente: adelantar la validación del analista cuando el digitalizador termina antes.
 
 ## Seguridad en la base
 
