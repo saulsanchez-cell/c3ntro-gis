@@ -4,7 +4,7 @@
 -- Resultado esperado: sin filas y sin error. Si aborta porque los valores vigentes no son los esperados, no queda nada escrito: mandar el mensaje completo.
 -- Estado: APLICADO EN SIGOPRUEBA Y PRODUCCIÓN
 -- Aplicado en SIGOprueba (iadojhaibxpnirzijivf): 2026-11-25
--- Aplicado en producción (rtwjwfpaturmbmegwtys): 2026-11-25
+-- Aplicado en producción (rtwjwfpaturmbmegwtys): 2026-11-25 (02 con OK 01 a 04 y auditoria correcta; confirmado por Saul, sin pegar resultados)
 --
 -- Decisiones de Saul (2026-11-25):
 --   - El 2026-11-09 se acordo con Gerencia no ajustar la jornada minima hasta tener un mes

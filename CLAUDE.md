@@ -106,6 +106,9 @@ Reglas:
     - cuenta de apoyo: solo esas 3 fechas.
   - Si una columna nueva la deben cambiar quienes no son coordinador, hay que agregarla a las listas del trigger.
   - Frontend: "+ NUEVA UO" solo para el coordinador, y el cambio de estado en FichaUO solo para el coordinador, el digitalizador o el analista de la UO.
+- Transiciones desde Pendiente (`db-changes/2026-11-23_transiciones-desde-pendiente_*`), aplicadas en SIGOprueba y producción el 2026-11-23. Son solo filas en `transiciones_permitidas`; FichaUO las lee de la tabla:
+  - Pendiente → Bloqueada (solo coordinador, con motivo): bloquear sin asignar. Para desbloquear, regresarla a Pendiente y asignar normal; no usar Bloqueada → En Proceso, porque quedaría sin digitalizador ni pasos.
+  - Pendiente → Cerrada (solo coordinador): UOs sin planta externa, que no se asignan. En el modal de cierre se elige "conectividad externa". Miden 400 m como máximo y no cuentan en los KPIs de nadie.
 - Ya no queda ninguna política de escritura `USING (true)`: la auditoría debe dar 0 filas.
 - `profiles`: cualquier sesión lee. Solo `es_coordinador()` puede hacer INSERT, UPDATE o DELETE (políticas `profiles_*`). Los perfiles se administran desde el SQL Editor. La app no escribe en `profiles`.
 - El registro de eventos (`actividades_uo_eventos`) es de solo inserción, y los cambios sensibles siguen el patrón valor anterior, valor nuevo, usuario, motivo y timestamp.

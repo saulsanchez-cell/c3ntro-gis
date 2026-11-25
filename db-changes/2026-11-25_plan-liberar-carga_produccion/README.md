@@ -1,6 +1,6 @@
 # Liberar la carga al completar los 4 pasos: pasos
 
-**Estado: APLICADO EN SIGOPRUEBA Y PRODUCCIÓN el 2026-11-25.** En SIGOprueba, el `03` (4 filas con `ok = true`) y la auditoría (0 filas) se verificaron por MCP. En producción, el `03` dio 4 filas con `ok = true` y las mismas huellas (reportado por Saúl).
+**Estado: APLICADO EN SIGOPRUEBA Y PRODUCCIÓN el 2026-11-25.** En SIGOprueba, el `03` (4 filas con `ok = true`) y la auditoría (0 filas) se verificaron por MCP. En producción, el `03` dio 4 filas con `ok = true` y las mismas huellas (reportado por Saúl); la auditoría de seguridad también salió bien (confirmado por Saúl, sin pegar el resultado).
 
 Qué hace: cuando el digitalizador completa el último de sus 4 pasos, la carga de la UO desde mañana se borra sola y queda registrada en `plan_carga_liberada`. Si después se desmarca un paso, la carga liberada que siga siendo de mañana en adelante se devuelve. La carga de hoy y la de días pasados, las fechas de los pasos y la validación del analista no se tocan.
 
