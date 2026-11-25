@@ -917,13 +917,16 @@ export default function PlanSemanal() {
         const refs = filas
           .filter(c => uoPorId[c.uo_id])
           .map(c => uoPorId[c.uo_id].referencia_operativa + (c.validacion ? ' (val)' : ''))
-        return { fecha: f, j, cap: capPersona(p.id, f), refs, ausencia: ausenciaDe(p.id, f) }
+        return { fecha: f, j, cap: capPersona(p.id, f), refs, ausencia: ausenciaDe(p.id, f), pasado: f < hoy }
       })
       const j = celdas.reduce((s, c) => s + c.j, 0)
       const cap = celdas.reduce((s, c) => s + c.cap, 0)
-      const libre = celdas.reduce((s, c) => s + Math.max(0, c.cap - c.j), 0)
-      const sobrecarga = celdas.reduce((s, c) => s + Math.max(0, c.j - c.cap), 0)
-      return { persona: p, celdas, j, cap, libre, sobrecarga }
+      // Libre y sobrecarga solo de hoy en adelante: lo libre de un día que ya pasó no se puede usar
+      // y su carga ya no se puede mover. Los días pasados se siguen mostrando con su carga.
+      const vigentes = celdas.filter(c => !c.pasado)
+      const libre = vigentes.reduce((s, c) => s + Math.max(0, c.cap - c.j), 0)
+      const sobrecarga = vigentes.reduce((s, c) => s + Math.max(0, c.j - c.cap), 0)
+      return { persona: p, celdas, vigentes, j, cap, libre, sobrecarga }
     })
 
     const minimo = datos.parametros ? Number(vigente(datos.parametros, hoy)?.valor) : NaN
@@ -932,8 +935,8 @@ export default function PlanSemanal() {
           .map(f => ({
             persona: f.persona,
             libre: f.libre,
-            diasLibres: f.celdas.filter(c => c.cap - c.j > EPS).map(c => ({ fecha: c.fecha, libre: c.cap - c.j })),
-            caben: f.celdas.reduce((s, c) => s + Math.floor(Math.max(0, c.cap - c.j) / minimo + 1e-9), 0),
+            diasLibres: f.vigentes.filter(c => c.cap - c.j > EPS).map(c => ({ fecha: c.fecha, libre: c.cap - c.j })),
+            caben: f.vigentes.reduce((s, c) => s + Math.floor(Math.max(0, c.cap - c.j) / minimo + 1e-9), 0),
           }))
           .sort((a, b) => b.libre - a.libre)
       : null
@@ -1240,7 +1243,7 @@ export default function PlanSemanal() {
                         {f.celdas.map((c, i) => {
                           const e = estadoCarga(c.j, c.cap)
                           return (
-                            <div key={c.fecha} style={{ gridColumn:i + 2, borderLeft:'0.5px solid var(--border2)', padding:'10px 12px', background: c.ausencia ? FONDO_AUSENCIA : c.fecha === hoy ? 'rgba(249,115,22,0.04)' : 'none' }}>
+                            <div key={c.fecha} title={c.pasado ? 'Día pasado: no cuenta en Libre ni en Sobrecarga' : undefined} style={{ gridColumn:i + 2, borderLeft:'0.5px solid var(--border2)', padding:'10px 12px', background: c.ausencia ? FONDO_AUSENCIA : c.fecha === hoy ? 'rgba(249,115,22,0.04)' : 'none', opacity: c.pasado ? 0.5 : 1 }}>
                               {c.ausencia && <div style={{ marginBottom:'4px' }}><EtiquetaAusencia a={c.ausencia} /></div>}
                               <div style={{ fontFamily:'var(--mono)', fontSize:'10px' }}>{fmt(c.j)} / {fmt(c.cap)}</div>
                               <Barra valor={c.j} total={c.cap} color={e.color} />
@@ -1265,7 +1268,7 @@ export default function PlanSemanal() {
 
               {m.dondeAsignar && (
                 <div className="glass" style={{ borderRadius:'10px', padding:'14px 16px' }}>
-                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.12em', marginBottom:'10px' }}>DONDE ASIGNAR MAS TRABAJO</div>
+                  <div style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--muted)', letterSpacing:'0.12em', marginBottom:'10px' }}>DONDE ASIGNAR MAS TRABAJO · DE HOY EN ADELANTE</div>
                   <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
                     {m.dondeAsignar.map(d => (
                       <div key={d.persona.id} style={{ display:'grid', gridTemplateColumns:'170px 120px 1fr', gap:'10px', alignItems:'center', background:'var(--surface2)', border:'0.5px solid var(--border2)', borderRadius:'6px', padding:'8px 12px' }}>
