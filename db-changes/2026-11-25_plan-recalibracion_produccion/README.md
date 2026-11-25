@@ -1,6 +1,6 @@
 # Recalibración del plan semanal: pasos
 
-**Estado: APLICADO el 2026-11-25.** Valores nuevos en SIGOprueba y producción; liberación de carga en producción (04c: `carga_futura` 0 y 2.0 hasta el 25 en las 3 UOs). En la app, Miguel y Uziel quedaron libres desde el 2026-11-26; Ademir seguía ocupado hasta el viernes (diagnóstico en `05_lectura_carga-ademir.sql`).
+**Estado: APLICADO el 2026-11-25.** Saúl confirmó el 2026-11-25 el `02` de los valores nuevos en producción (OK 01 a 04) y la auditoría de seguridad (sin pegar los resultados). Valores nuevos en SIGOprueba y producción; liberación de carga en producción (04c: `carga_futura` 0 y 2.0 hasta el 25 en las 3 UOs). En la app, Miguel y Uziel quedaron libres desde el 2026-11-26; Ademir seguía ocupado hasta el viernes (diagnóstico en `05_lectura_carga-ademir.sql`).
 
 Dos cambios independientes:
 - **Valores nuevos** desde el 2026-11-26: Mixto 35, Subterráneo 35 y Aéreo 60 km por jornada; jornada mínima por UO 0.33. Van en SIGOprueba y producción.
